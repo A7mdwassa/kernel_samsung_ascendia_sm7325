@@ -197,12 +197,12 @@ static inline struct hlist_head *mp_hash(struct dentry *dentry)
 }
 
 #ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
-// // Our own mnt_alloc_id() that assigns mnt_id starting from DEFAULT_SUS_MNT_ID
+// // Our own mnt_alloc_id() that assigns mnt_id starting from DEFAULT_KSU_MNT_ID
 /* Used to allocate fake mnt_id */
 
 static int susfs_mnt_alloc_id(struct mount *mnt)
 {
-	int res = ida_alloc_min(&susfs_ksu_mnt_id_ida, DEFAULT_SUS_MNT_ID, GFP_KERNEL);
+	int res = ida_alloc_min(&susfs_ksu_mnt_id_ida, DEFAULT_KSU_MNT_ID, GFP_KERNEL);
 
 	if (res < 0)
 		return res;
@@ -223,13 +223,13 @@ static int mnt_alloc_id(struct mount *mnt)
 static void mnt_free_id(struct mount *mnt)
 {
 #ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
-//	// We should first check the 'mnt->mnt.susfs_mnt_id_backup', see if it is DEFAULT_SUS_MNT_ID_FOR_KSU_PROC_UNSHARE
+//	// We should first check the 'mnt->mnt.susfs_mnt_id_backup', see if it is DEFAULT_KSU_MNT_ID_FOR_KSU_PROC_UNSHARE
 //	// if so, these mnt_id were not assigned by mnt_alloc_id() so we don't need to free it.
-//	if (unlikely(mnt->mnt.susfs_mnt_id_backup == DEFAULT_SUS_MNT_ID_FOR_KSU_PROC_UNSHARE)) {
+//	if (unlikely(mnt->mnt.susfs_mnt_id_backup == DEFAULT_KSU_MNT_ID_FOR_KSU_PROC_UNSHARE)) {
 //		return;
 //	}
 //	// Now we can check if its mnt_id is sus
-//	if (unlikely(mnt->mnt_id >= DEFAULT_SUS_MNT_ID)) {
+//	if (unlikely(mnt->mnt_id >= DEFAULT_KSU_MNT_ID)) {
 //		ida_free(&susfs_ksu_mnt_id_ida, mnt->mnt_id);
 	/* - We should keep checking mnt->mnt.susfs_mnt_id_backup if it was set.
 	 * - Then check if mnt->mnt_id is >= DEFAULT_KSU_MNT_ID.
@@ -261,7 +261,7 @@ static int mnt_alloc_group_id(struct mount *mnt)
 	int res;
 
 //	// Check if mnt has sus mnt_id
-//	if (mnt->mnt_id >= DEFAULT_SUS_MNT_ID) {
+//	if (mnt->mnt_id >= DEFAULT_KSU_MNT_ID) {
 //		// If so, assign a sus mnt_group id DEFAULT_SUS_MNT_GROUP_ID from susfs_mnt_group_ida
 //		res = ida_alloc_min(&susfs_mnt_group_ida, DEFAULT_SUS_MNT_GROUP_ID, GFP_KERNEL);
 	/* - At frist susfs_is_boot_completed_triggered is set to false in kernel,
@@ -4875,7 +4875,7 @@ void susfs_run_try_umount_for_current_mnt_ns(void) {
 	namespace_lock();
 	list_for_each_entry(mnt, &mnt_ns->list, mnt_list) {
 		// Change the sus mount to be private
-		if (mnt->mnt_id >= DEFAULT_SUS_MNT_ID) {
+		if (mnt->mnt_id >= DEFAULT_KSU_MNT_ID) {
 			change_mnt_propagation(mnt, MS_PRIVATE);
 		}
 	}
