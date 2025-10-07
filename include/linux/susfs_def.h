@@ -41,21 +41,28 @@
 #define SUS_SU_WITH_OVERLAY 1 /* deprecated */
 #define SUS_SU_WITH_HOOKS 2
 
-#define DEFAULT_SUS_MNT_ID 100000 /* used by mount->mnt_id */
-#define DEFAULT_SUS_MNT_ID_FOR_KSU_PROC_UNSHARE 1000000 /* used by vfsmount->susfs_mnt_id_backup */
-#define DEFAULT_SUS_MNT_GROUP_ID 1000 /* used by mount->mnt_group_id */
+//#define DEFAULT_SUS_MNT_ID 100000 /* used by mount->mnt_id */
+//#define DEFAULT_SUS_MNT_ID_FOR_KSU_PROC_UNSHARE 1000000 /* used by vfsmount->susfs_mnt_id_backup */
+//#define DEFAULT_SUS_MNT_GROUP_ID 1000 /* used by mount->mnt_group_id */
+#define DEFAULT_KSU_MNT_ID 300000 /* used by mount->mnt_id */
+#define DEFAULT_KSU_MNT_GROUP_ID 3000 /* used by mount->mnt_group_id */
 
 /*
  * inode->i_state => storing flag 'INODE_STATE_'
  * mount->mnt.susfs_mnt_id_backup => storing original mnt_id of normal mounts or custom sus mnt_id of sus mounts
- * task_struct->susfs_task_state => storing flag 'TASK_STRUCT_'
+ //* task_struct->susfs_task_state => storing flag 'TASK_STRUCT_'
+ * inode->i_mapping->flags => storing flag 'AS_FLAGS_'
+ * nd->state => storing flag 'ND_STATE_'
+ * nd->flags => storing flag 'ND_FLAGS_'
+ * task_struct->thread_info.flags => storing flag 'TIF_'
  */
 //#define INODE_STATE_SUS_PATH BIT(24)
 //#define INODE_STATE_SUS_MOUNT BIT(25)
 //#define INODE_STATE_SUS_KSTAT BIT(26)
 //#define INODE_STATE_OPEN_REDIRECT BIT(27)
 
-#define TASK_STRUCT_NON_ROOT_USER_APP_PROC BIT(24)
+//#define TASK_STRUCT_NON_ROOT_USER_APP_PROC BIT(24)
+#define TIF_PROC_UMOUNTED 33
 
 #define AS_FLAGS_SUS_PATH 24
 #define AS_FLAGS_SUS_MOUNT 25
@@ -87,4 +94,13 @@ static inline bool susfs_starts_with(const char *str, const char *prefix) {
     }
     return true;
 }
+
+static inline bool susfs_is_current_proc_umounted(void) {
+	return test_ti_thread_flag(&current->thread_info, TIF_PROC_UMOUNTED);
+}
+
+static inline void susfs_set_current_proc_umounted(void) {
+	set_ti_thread_flag(&current->thread_info, TIF_PROC_UMOUNTED);
+}
+
 #endif // #ifndef KSU_SUSFS_DEF_H
