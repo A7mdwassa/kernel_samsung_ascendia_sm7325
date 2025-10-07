@@ -10,6 +10,7 @@
 #define CMD_SUSFS_ADD_SUS_PATH 0x55550
 #define CMD_SUSFS_SET_ANDROID_DATA_ROOT_PATH 0x55551
 #define CMD_SUSFS_SET_SDCARD_ROOT_PATH 0x55552
+#define CMD_SUSFS_ADD_SUS_PATH_LOOP 0x55553
 #define CMD_SUSFS_ADD_SUS_MOUNT 0x55560
 #define CMD_SUSFS_HIDE_SUS_MNTS_FOR_ALL_PROCS 0x55561
 #define CMD_SUSFS_UMOUNT_FOR_ZYGOTE_ISO_SERVICE 0x55562
@@ -28,6 +29,7 @@
 #define CMD_SUSFS_SHOW_SUS_SU_WORKING_MODE 0x555e4
 #define CMD_SUSFS_IS_SUS_SU_READY 0x555f0
 #define CMD_SUSFS_SUS_SU 0x60000
+#define CMD_SUSFS_ENABLE_AVC_LOG_SPOOFING 0x60010
 
 #define SUSFS_MAX_LEN_PATHNAME 256 // 256 should address many paths already unless you are doing some strange experimental stuff, then set your own desired length
 #define SUSFS_FAKE_CMDLINE_OR_BOOTCONFIG_SIZE 4096
@@ -70,5 +72,11 @@
 #define DATA_ADB_NO_AUTO_ADD_SUS_BIND_MOUNT "/data/adb/susfs_no_auto_add_sus_bind_mount"
 #define DATA_ADB_NO_AUTO_ADD_SUS_KSU_DEFAULT_MOUNT "/data/adb/susfs_no_auto_add_sus_ksu_default_mount"
 #define DATA_ADB_NO_AUTO_ADD_TRY_UMOUNT_FOR_BIND_MOUNT "/data/adb/susfs_no_auto_add_try_umount_for_bind_mount"
-
+static inline bool susfs_starts_with(const char *str, const char *prefix) {
+    while (*prefix) {
+        if (*str++ != *prefix++)
+            return false;
+    }
+    return true;
+}
 #endif // #ifndef KSU_SUSFS_DEF_H
