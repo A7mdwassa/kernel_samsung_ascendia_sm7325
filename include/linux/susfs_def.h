@@ -50,15 +50,23 @@
  * mount->mnt.susfs_mnt_id_backup => storing original mnt_id of normal mounts or custom sus mnt_id of sus mounts
  * task_struct->susfs_task_state => storing flag 'TASK_STRUCT_'
  */
-#define INODE_STATE_SUS_PATH BIT(24)
-#define INODE_STATE_SUS_MOUNT BIT(25)
-#define INODE_STATE_SUS_KSTAT BIT(26)
-#define INODE_STATE_OPEN_REDIRECT BIT(27)
+//#define INODE_STATE_SUS_PATH BIT(24)
+//#define INODE_STATE_SUS_MOUNT BIT(25)
+//#define INODE_STATE_SUS_KSTAT BIT(26)
+//#define INODE_STATE_OPEN_REDIRECT BIT(27)
 
 #define TASK_STRUCT_NON_ROOT_USER_APP_PROC BIT(24)
 
+#define AS_FLAGS_SUS_PATH 24
+#define AS_FLAGS_SUS_MOUNT 25
+#define AS_FLAGS_SUS_KSTAT 26
+#define AS_FLAGS_OPEN_REDIRECT 27
 #define AS_FLAGS_ANDROID_DATA_ROOT_DIR 28
 #define AS_FLAGS_SDCARD_ROOT_DIR 29
+#define BIT_SUS_PATH BIT(24)
+#define BIT_SUS_MOUNT BIT(25)
+#define BIT_SUS_KSTAT BIT(26)
+#define BIT_OPEN_REDIRECT BIT(27)
 #define BIT_ANDROID_DATA_ROOT_DIR BIT(28)
 #define BIT_ANDROID_SDCARD_ROOT_DIR BIT(29)
 
