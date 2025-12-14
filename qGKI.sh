@@ -7,7 +7,7 @@ echo -e "\n[INFO]: BUILD STARTED..!\n"
 
 export KERNEL_ROOT="$(pwd)"
 export ARCH=arm64
-export KBUILD_BUILD_USER="Nassar"
+export KBUILD_BUILD_USER="Kebab"
 
 # Create necessary directories
 mkdir -p "${KERNEL_ROOT}/out" "${KERNEL_ROOT}/build" "${HOME}/toolchains"
@@ -30,14 +30,13 @@ mkdir -p "${KERNEL_ROOT}/out" "${KERNEL_ROOT}/build" "${HOME}/toolchains"
 #fi
 
 # Export toolchain paths
-export PATH="${HOME}/clangnew/bin:${PATH}"
-export LD_LIBRARY_PATH="${HOME}/clangnew/lib:${LD_LIBRARY_PATH}"
+export PATH="${HOME}/toolchains/clang-r383902b1/bin:${PATH}"
+export LD_LIBRARY_PATH="${HOME}/toolchains/clang-r383902b1/lib:${LD_LIBRARY_PATH}"
 
 # Set cross-compile environment variables
-export BUILD_CROSS_COMPILE_COMPAT="${HOME}/gcc-arm/bin/arm-linux-androideabi-"
-export BUILD_CROSS_COMPILE="${HOME}/gcc/bin/aarch64-linux-android-"
-export BUILD_CC="${HOME}/clangnew/bin/clang"
-#TC_DIR="/home/nassar/toolchains/LLVM-20.1.6-Linux-X64"
+export BUILD_CROSS_COMPILE_COMPAT="${HOME}/toolchains/gcc-arm/bin/arm-linux-androideabi-"
+export BUILD_CROSS_COMPILE="${HOME}/toolchains/gcc/bin/aarch64-linux-androidkernel-"
+export BUILD_CC="${HOME}/toolchains/clang-r383902b1/bin/clang"
 # Build options for the kernel
 export BUILD_OPTIONS="
 -C ${KERNEL_ROOT} \
@@ -53,7 +52,7 @@ CLANG_TRIPLE=aarch64-linux-gnu- \
 LD=ld.lld \
 NM=llvm-nm \
 OBJCOPY=llvm-objcopy \
-CLANG_PREBUILT_BIN="${HOME}/clangnew/bin" \
+CLANG_PREBUILT_BIN="${HOME}/toolchains/clang-r383902b1/bin" \
 DEPMOD=depmod \
 "
 build_kernel(){
@@ -69,9 +68,14 @@ build_kernel(){
 
     # Build the kernel
     make ${BUILD_OPTIONS} Image || exit 1
-
+    cp out/arch/arm64/boot/Image /mnt/hgfs/Firm/Image1
+    cp out/arch/arm64/boot/Image ${HOME}/kernels
+    cd ${HOME}/kernels
+    ./patch_linux Image
+    cd $KERNEL_ROOT
+    mv ../oImage out/arch/arm64/boot/Image
     # Copy the built kernel to the build directory
-    cp "${KERNEL_ROOT}/out/arch/arm64/boot/Image" "${KERNEL_ROOT}/build"
+    cp "${KERNEL_ROOT}/out/arch/arm64/boot/Image" /mnt/hgfs/Firm
 
     echo -e "\n[INFO]: BUILD FINISHED..!"
 }
