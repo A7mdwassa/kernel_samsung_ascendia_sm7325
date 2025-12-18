@@ -27,10 +27,10 @@
 /* sus_path */
 #ifdef CONFIG_KSU_SUSFS_SUS_PATH
 struct st_susfs_sus_path {
-	unsigned long                    target_ino;
-	char                             target_pathname[SUSFS_MAX_LEN_PATHNAME];
-	unsigned int                     i_uid;
-	int                              err;
+	unsigned long                           target_ino;
+	char                                    target_pathname[SUSFS_MAX_LEN_PATHNAME];
+	unsigned int                            i_uid;
+	int                                     err;
 };
 
 struct st_susfs_sus_path_list {
@@ -46,81 +46,55 @@ struct st_external_dir {
 	int                                     cmd;
 	int                                     err;
 };
+
+struct st_sdcard_path {
+	char                                    target_pathname[SUSFS_MAX_LEN_PATHNAME];
+	unsigned long                           target_dev;
+	int                                     err;
+};
 #endif
 
 /* sus_mount */
 #ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
-struct st_susfs_sus_mount {
-	char                    target_pathname[SUSFS_MAX_LEN_PATHNAME];
-	unsigned long           target_dev;
-	int                     err;
-};
-
-struct st_susfs_sus_mount_list {
-	struct list_head                        list;
-	struct st_susfs_sus_mount               info;
-};
-
 struct st_susfs_hide_sus_mnts_for_all_procs {
 	bool                                    enabled;
 	int                                     err;
 };
-
-struct st_susfs_umount_for_zygote_iso_service {
-	bool                                    enabled;
-	int                                     err;
-};
-
 #endif
 
 /* sus_kstat */
 #ifdef CONFIG_KSU_SUSFS_SUS_KSTAT
 struct st_susfs_sus_kstat {
-	int                     is_statically;
-	unsigned long           target_ino; // the ino after bind mounted or overlayed
-	char                    target_pathname[SUSFS_MAX_LEN_PATHNAME];
-	unsigned long           spoofed_ino;
-	unsigned long           spoofed_dev;
-	unsigned int            spoofed_nlink;
-	long long               spoofed_size;
-	long                    spoofed_atime_tv_sec;
-	long                    spoofed_mtime_tv_sec;
-	long                    spoofed_ctime_tv_sec;
-	long                    spoofed_atime_tv_nsec;
-	long                    spoofed_mtime_tv_nsec;
-	long                    spoofed_ctime_tv_nsec;
-	unsigned long           spoofed_blksize;
-	unsigned long long      spoofed_blocks;
-	int                     err;
+	int                                     is_statically;
+	unsigned long                           target_ino; // the ino after bind mounted or overlayed
+	char                                    target_pathname[SUSFS_MAX_LEN_PATHNAME];
+	unsigned long                           spoofed_ino;
+	unsigned long                           spoofed_dev;
+	unsigned int                            spoofed_nlink;
+	long long                               spoofed_size;
+	long                                    spoofed_atime_tv_sec;
+	long                                    spoofed_mtime_tv_sec;
+	long                                    spoofed_ctime_tv_sec;
+	long                                    spoofed_atime_tv_nsec;
+	long                                    spoofed_mtime_tv_nsec;
+	long                                    spoofed_ctime_tv_nsec;
+	unsigned long                           spoofed_blksize;
+	unsigned long long                      spoofed_blocks;
+	int                                     err;
 };
 
 struct st_susfs_sus_kstat_hlist {
 	unsigned long                           target_ino;
 	struct st_susfs_sus_kstat               info;
 	struct hlist_node                       node;
-	int                                     err;
-};
-#endif
-
-/* try_umount */
-#ifdef CONFIG_KSU_SUSFS_TRY_UMOUNT
-struct st_susfs_try_umount {
-	char                    target_pathname[SUSFS_MAX_LEN_PATHNAME];
-	int                     mnt_mode;
-};
-
-struct st_susfs_try_umount_list {
-	struct list_head                        list;
-	struct st_susfs_try_umount              info;
-	int                                     err;
 };
 #endif
 
 /* spoof_uname */
 #ifdef CONFIG_KSU_SUSFS_SPOOF_UNAME
 struct st_susfs_uname {
-	char        release[__NEW_UTS_LEN+1];
-	char        version[__NEW_UTS_LEN+1];
+	char                                    release[__NEW_UTS_LEN+1];
+	char                                    version[__NEW_UTS_LEN+1];
 	int                                     err;
 };
 #endif
@@ -144,25 +118,25 @@ struct st_susfs_spoof_cmdline_or_bootconfig {
 /* open_redirect */
 #ifdef CONFIG_KSU_SUSFS_OPEN_REDIRECT
 struct st_susfs_open_redirect {
-	unsigned long                    target_ino;
-	char                             target_pathname[SUSFS_MAX_LEN_PATHNAME];
-	char                             redirected_pathname[SUSFS_MAX_LEN_PATHNAME];
-	int                              err;
+	unsigned long                           target_ino;
+	char                                    target_pathname[SUSFS_MAX_LEN_PATHNAME];
+	char                                    redirected_pathname[SUSFS_MAX_LEN_PATHNAME];
+	int                                     err;
 };
 
 struct st_susfs_open_redirect_hlist {
-	unsigned long                    target_ino;
-	char                             target_pathname[SUSFS_MAX_LEN_PATHNAME];
-	char                             redirected_pathname[SUSFS_MAX_LEN_PATHNAME];
-	struct hlist_node                node;
+	unsigned long                           target_ino;
+	char                                    target_pathname[SUSFS_MAX_LEN_PATHNAME];
+	char                                    redirected_pathname[SUSFS_MAX_LEN_PATHNAME];
+	struct hlist_node                       node;
 };
 #endif
 
 /* sus_map */
 #ifdef CONFIG_KSU_SUSFS_SUS_MAP
 struct st_susfs_sus_map {
-	char                             target_pathname[SUSFS_MAX_LEN_PATHNAME];
-	int                              err;
+	char                                    target_pathname[SUSFS_MAX_LEN_PATHNAME];
+	int                                     err;
 };
 #endif
 
@@ -201,9 +175,7 @@ void susfs_add_sus_path_loop(void __user **user_info);
 #endif
 /* sus_mount */
 #ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
-void susfs_add_sus_mount(void __user **user_info);
 void susfs_set_hide_sus_mnts_for_all_procs(void __user **user_info);
-void susfs_set_umount_for_zygote_iso_service(void __user **user_info);
 #endif // #ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
 
 /* sus_kstat */
@@ -213,11 +185,6 @@ void susfs_update_sus_kstat(void __user **user_info);
 void susfs_sus_ino_for_generic_fillattr(unsigned long ino, struct kstat *stat);
 void susfs_sus_ino_for_show_map_vma(unsigned long ino, dev_t *out_dev, unsigned long *out_ino);
 #endif
-/* try_umount */
-#ifdef CONFIG_KSU_SUSFS_TRY_UMOUNT
-void susfs_add_try_umount(void __user **user_info);
-void susfs_try_umount(void);
-#endif // #ifdef CONFIG_KSU_SUSFS_TRY_UMOUNT
 /* spoof_uname */
 #ifdef CONFIG_KSU_SUSFS_SPOOF_UNAME
 void susfs_set_uname(void __user **user_info);

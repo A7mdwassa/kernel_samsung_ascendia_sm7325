@@ -98,10 +98,10 @@
 #include <linux/task_integrity.h>
 #include <linux/proca.h>
 #include <linux/cn_proc.h>
+#include <trace/events/oom.h>
 #ifdef CONFIG_KSU_SUSFS_SUS_MAP
 #include <linux/susfs_def.h>
 #endif
-#include <trace/events/oom.h>
 #include "internal.h"
 #include "fd.h"
 
@@ -927,6 +927,7 @@ static ssize_t mem_rw(struct file *file, char __user *buf,
 			}
 		}
 #endif
+
 		if (write && copy_from_user(page, buf, this_len)) {
 			copied = -EFAULT;
 			break;

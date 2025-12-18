@@ -10,25 +10,7 @@ export ARCH=arm64
 export KBUILD_BUILD_USER="Kebab"
 
 # Create necessary directories
-mkdir -p "${KERNEL_ROOT}/out" "${KERNEL_ROOT}/build" "${HOME}/toolchains"
-
-# init snapdragon llvm
-#if [ ! -d "${HOME}/toolchains/llvm-arm-toolchain-ship" ]; then
-#    echo -e "\n[INFO] Cloning Snapdragon LLVM...\n"
-#    cd "${HOME}/toolchains" && curl -LO "https://github.com/ravindu644/Android-Kernel-Tutorials/releases/download/toolchains/llvm-arm-toolchain-ship-10.0.9.tar.gz"
-#    tar -xf llvm-arm-toolchain-ship-10.0.9.tar.gz && rm llvm-arm-toolchain-ship-10.0.9.tar.gz
-#    cd "${KERNEL_ROOT}"
-#fi
-
-# init arm gnu toolchain
-#if [ ! -d "${HOME}/toolchains/gcc" ]; then
-#    echo -e "\n[INFO] Cloning ARM GNU Toolchain\n"
-#    mkdir -p "${HOME}/toolchains/gcc" && cd "${HOME}/toolchains/gcc"
-#    curl -LO "https://developer.arm.com/-/media/Files/downloads/gnu/14.2.rel1/binrel/arm-gnu-toolchain-14.2.rel1-x86_64-aarch64-none-linux-gnu.tar.xz"
-#    tar -xf arm-gnu-toolchain-14.2.rel1-x86_64-aarch64-none-linux-gnu.tar.xz
-#    cd "${KERNEL_ROOT}"
-#fi
-
+mkdir -p "${KERNEL_ROOT}/out"
 # Export toolchain paths
 export PATH="${HOME}/toolchains/clang-r383902b1/bin:${PATH}"
 export LD_LIBRARY_PATH="${HOME}/toolchains/clang-r383902b1/lib:${LD_LIBRARY_PATH}"

@@ -38,18 +38,6 @@
 #define DEVPTS_DEFAULT_PTMX_MODE 0000
 #define PTMX_MINOR	2
 
-#ifdef CONFIG_KSU_SUSFS_SUS_SU
-extern int __ksu_handle_devpts(struct inode *inode);
-
-#ifndef ksu_handle_devpts
-int ksu_handle_devpts(struct inode *inode)
-{
-    return __ksu_handle_devpts(inode);
-}
-EXPORT_SYMBOL(ksu_handle_devpts);
-#endif /* ksu_handle_devpts */
-#endif /* CONFIG_KSU_SUSFS_SUS_SU */
-
 /*
  * sysctl support for setting limits on the number of Unix98 ptys allocated.
  * Otherwise one can eat up all kernel memory by opening /dev/ptmx repeatedly.
@@ -574,6 +562,10 @@ void devpts_kill_index(struct pts_fs_info *fsi, int idx)
  *
  * The created inode is returned. Remove it from /dev/pts/ by devpts_pty_kill.
  */
+#ifdef CONFIG_KSU_SUSFS
+extern int ksu_handle_devpts(struct inode*);
+#endif
+
 struct dentry *devpts_pty_new(struct pts_fs_info *fsi, int index, void *priv)
 {
 	struct dentry *dentry;
@@ -610,9 +602,7 @@ struct dentry *devpts_pty_new(struct pts_fs_info *fsi, int index, void *priv)
 
 	return dentry;
 }
-#ifdef CONFIG_KSU_SUSFS
-extern int ksu_handle_devpts(struct inode*);
-#endif
+
 /**
  * devpts_get_priv -- get private data for a slave
  * @pts_inode: inode of the slave
@@ -628,6 +618,7 @@ void *devpts_get_priv(struct dentry *dentry)
 	ksu_handle_devpts(dentry->d_inode);
 orig_flow:
 #endif
+
 	if (dentry->d_sb->s_magic != DEVPTS_SUPER_MAGIC)
 		return NULL;
 	return dentry->d_fsdata;

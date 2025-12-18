@@ -31,12 +31,6 @@
 #include "avc_ss.h"
 #include "classmap.h"
 
-#ifdef CONFIG_KSU_SUSFS
-extern u32 susfs_ksu_sid;
-extern u32 susfs_priv_app_sid;
-bool susfs_is_avc_log_spoofing_enabled = false;
-#endif
-
 #define AVC_CACHE_SLOTS			512
 #define AVC_DEF_CACHE_THRESHOLD		512
 #define AVC_CACHE_RECLAIM		16
@@ -699,6 +693,11 @@ static void avc_audit_pre_callback(struct audit_buffer *ab, void *a)
 
 	audit_log_format(ab, " } for ");
 }
+#ifdef CONFIG_KSU_SUSFS
+extern u32 susfs_ksu_sid;
+extern u32 susfs_priv_app_sid;
+bool susfs_is_avc_log_spoofing_enabled = false;
+#endif
 
 /**
  * avc_audit_post_callback - SELinux specific information
@@ -740,6 +739,7 @@ static void avc_audit_post_callback(struct audit_buffer *ab, void *a)
 		audit_log_format(ab, " tcontext=%s", scontext);
 		kfree(scontext);
 	}
+
 #ifdef CONFIG_KSU_SUSFS
 bypass_orig_flow:
 #endif
