@@ -25,6 +25,7 @@
 #if defined(CONFIG_KSU_SUSFS_SUS_KSTAT) || defined(CONFIG_KSU_SUSFS_SUS_MAP)
 #include <linux/susfs_def.h>
 #endif
+
 #include <asm/elf.h>
 #include <asm/tlb.h>
 #include <asm/tlbflush.h>
@@ -385,7 +386,7 @@ show_map_vma(struct seq_file *m, struct vm_area_struct *vma)
 	unsigned long start, end;
 	dev_t dev = 0;
 	const char *name = NULL;
-    struct dentry *dentry;
+	struct dentry *dentry;
 
 	if (file) {
 		struct inode *inode = file_inode(vma->vm_file);
@@ -425,10 +426,8 @@ bypass_orig_flow:
 			if (strstr(path, "lineage")) {
 				start = vma->vm_start;
 				end = vma->vm_end;
-				show_vma_header_prefix(m, start, end, flags,
-						       pgoff, dev, ino);
-				name = "/system/framework/framework-res.apk";
-				goto done;
+				show_vma_header_prefix_fake(m, start, end, flags, pgoff, dev, ino);
+				goto bypass;
 			}
 			if (strstr(path, "jit-zygote-cache")) {
 				start = vma->vm_start;
@@ -445,7 +444,6 @@ bypass_orig_flow:
 	end = vma->vm_end;
 	show_vma_header_prefix(m, start, end, flags, pgoff, dev, ino);
 bypass:
-
 	/*
 	 * Print the dentry name for named mappings, and a
 	 * special [heap] marker for the heap:

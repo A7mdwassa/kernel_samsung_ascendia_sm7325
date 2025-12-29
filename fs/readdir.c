@@ -391,6 +391,7 @@ static int filldir64(struct dir_context *ctx, const char *name, int namlen,
 #ifdef CONFIG_KSU_SUSFS_SUS_PATH
 	struct inode *inode;
 #endif
+
 	buf->error = verify_dirent_name(name, namlen);
 	if (unlikely(buf->error))
 		return buf->error;
@@ -787,6 +788,7 @@ orig_flow:
 		else
 			error = count - buf.count;
 	}
+
 	fdput_pos(f);
 	return error;
 }

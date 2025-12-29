@@ -69,13 +69,10 @@ static int seq_show(struct seq_file *m, void *v)
 			   (long long)file->f_pos, f_flags,
 			   mnt->mnt_id);
 #else
- 	seq_printf(m, "pos:\t%lli\nflags:\t0%o\nmnt_id:\t%i\n",
+	seq_printf(m, "pos:\t%lli\nflags:\t0%o\nmnt_id:\t%i\n",
 		   (long long)file->f_pos, f_flags,
 		   real_mount(file->f_path.mnt)->mnt_id);
 #endif
-
-	
-
 	show_fd_locks(m, file, files);
 	if (seq_has_overflowed(m))
 		goto out;

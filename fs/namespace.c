@@ -31,12 +31,13 @@
 #include <linux/fs_context.h>
 #include <linux/shmem_fs.h>
 #include <linux/fslog.h>
-#ifdef CONFIG_KDP_NS
-#include <linux/kdp.h>
-#endif
 #ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
 #include <linux/susfs_def.h>
 #endif
+#ifdef CONFIG_KDP_NS
+#include <linux/kdp.h>
+#endif
+
 #include "pnode.h"
 #include "internal.h"
 

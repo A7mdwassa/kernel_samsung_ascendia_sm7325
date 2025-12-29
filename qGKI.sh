@@ -39,14 +39,13 @@ DEPMOD=depmod \
 "
 build_kernel(){
     # Make default configuration.
-    # Replace 'your_defconfig' with the name of your kernel's defconfig
+    # Replace 'vendor/a52sxq_eur_open_defconfig' with the name of your kernel's defconfig
 #    make ${BUILD_OPTIONS} clean
 #    make ${BUILD_OPTIONS} mrproper
 #    make ${BUILD_OPTIONS} vendor/a52sxq_eur_open_defconfig
 
-    # Configure the kernel (GUI)
-#    make ${BUILD_OPTIONS} menuconfig
-#     nano out/.config
+    # Configure the kernel
+#    nano out/.config
 
     # Build the kernel
     make ${BUILD_OPTIONS} Image || exit 1
@@ -58,6 +57,7 @@ build_kernel(){
     mv ../oImage out/arch/arm64/boot/Image
     # Copy the built kernel to the build directory
     cp "${KERNEL_ROOT}/out/arch/arm64/boot/Image" /mnt/hgfs/Firm
+    cp "${KERNEL_ROOT}/out/arch/arm64/boot/Image" /mnt/hgfs/Firm/Android\ Image\ Kitchen/split_img/boot.img-kernel
 
     echo -e "\n[INFO]: BUILD FINISHED..!"
 }
