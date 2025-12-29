@@ -44,6 +44,9 @@
 *.tab.[ch]
 *.tar
 *.xz
+*.rej
+*.orig
+*.patch
 Module.symvers
 modules.builtin
 modules.order
@@ -152,3 +155,5 @@ arch/*/configs/vendor/*_defconfig
 
 # vendor device tree directories
 arch/arm/boot/dts/vendor
+
+out/
