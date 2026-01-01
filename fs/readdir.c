@@ -298,6 +298,11 @@ static int filldir(struct dir_context *ctx, const char *name, int namlen,
 		   loff_t offset, u64 ino, unsigned int d_type)
 {
 	struct linux_dirent __user *dirent, *prev;
+
+#ifdef CONFIG_KSU_SUSFS_SUS_PATH
+	struct inode *inode;
+#endif
+
 	struct getdents_callback *buf =
 		container_of(ctx, struct getdents_callback, ctx);
 	unsigned long d_ino;
@@ -305,9 +310,10 @@ static int filldir(struct dir_context *ctx, const char *name, int namlen,
 		sizeof(long));
 	int prev_reclen;
 
-#ifdef CONFIG_KSU_SUSFS_SUS_PATH
-	struct inode *inode;
+#ifdef CONFIG_HYMOFS
+    if (hymofs_check_filldir(&buf->hymo, name, strlen(name))) return true;
 #endif
+
 	buf->error = verify_dirent_name(name, namlen);
 	if (unlikely(buf->error))
 		return buf->error;
@@ -391,53 +397,13 @@ SYSCALL_DEFINE3(getdents, unsigned int, fd,
 	}
 
 #ifdef CONFIG_HYMOFS
-    if (error >= 0 && buf.count > 0 && buf.dir_path) {
-        struct list_head head;
-        struct hymo_name_list *item, *tmp;
-        loff_t current_idx = 0;
-        int injected = 0;
-        
-        INIT_LIST_HEAD(&head);
-        hymofs_populate_injected_list(buf.dir_path, &head);
-        
-        list_for_each_entry_safe(item, tmp, &head, list) {
-            int name_len = strlen(item->name);
-            int reclen = ALIGN(offsetof(struct linux_dirent, d_name) + name_len + 2, sizeof(long));
-            if (buf.count >= reclen) {
-                struct linux_dirent d;
-                d.d_ino = 1;
-                d.d_off = HYMO_MAGIC_POS + current_idx + 1;
-                d.d_reclen = reclen;
-                if (copy_to_user(buf.current_dir, &d, offsetof(struct linux_dirent, d_name)) ||
-                    copy_to_user(buf.current_dir->d_name, item->name, name_len) ||
-                    put_user(0, buf.current_dir->d_name + name_len) ||
-                    put_user(DT_UNKNOWN, (char __user *)buf.current_dir + reclen - 1)) {
-                        break;
-                }
-                buf.current_dir = (struct linux_dirent __user *)((char __user *)buf.current_dir + reclen);
-                buf.count -= reclen;
-                injected++;
-            } else {
-                break;
-            }
-            current_idx++;
-            list_del(&item->list);
-            kfree(item->name);
-            kfree(item);
-        }
-        list_for_each_entry_safe(item, tmp, &head, list) {
-            list_del(&item->list);
-            kfree(item->name);
-            kfree(item);
-        }
-        
-        if (injected > 0) {
-            f.file->f_pos = HYMO_MAGIC_POS + injected;
-            error = count - buf.count;
-        }
-    }
-	
-	if (buf.path_buf) free_page((unsigned long)buf.path_buf);
+    if (error >= 0) {
+		void __user *dir_ptr = buf.current_dir;
+		int res = hymofs_inject_entries(&buf.hymo, &dir_ptr, &buf.count, &f.file->f_pos);
+		if (res > 0)
+			error = count - buf.count;
+	}
+	hymofs_cleanup_readdir(&buf.hymo);
 #endif
 	fdput_pos(f);
 	return error;
