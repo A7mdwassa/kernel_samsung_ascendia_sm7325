@@ -435,12 +435,12 @@ static int filldir64(struct dir_context *ctx, const char *name, int namlen,
 		sizeof(u64));
 	int prev_reclen;
 
-#ifdef CONFIG_HYMOFS
-	if (hymofs_check_filldir(&buf->hymo, name, namlen)) return true;
-#endif
-
 #ifdef CONFIG_KSU_SUSFS_SUS_PATH
 	struct inode *inode;
+#endif
+
+#ifdef CONFIG_HYMOFS
+	if (hymofs_check_filldir(&buf->hymo, name, namlen)) return true;
 #endif
 
 	buf->error = verify_dirent_name(name, namlen);
@@ -759,11 +759,12 @@ static int compat_filldir(struct dir_context *ctx, const char *name, int namlen,
 	int reclen = ALIGN(offsetof(struct compat_linux_dirent, d_name) +
 		namlen + 2, sizeof(compat_long_t));
 
-#ifdef CONFIG_HYMOFS
-    if (hymofs_check_filldir(&buf->hymo, name, namlen)) return true;
-#endif
 #ifdef CONFIG_KSU_SUSFS_SUS_PATH
 	struct inode *inode;
+#endif
+
+#ifdef CONFIG_HYMOFS
+    if (hymofs_check_filldir(&buf->hymo, name, namlen)) return true;
 #endif
 
 	buf->error = -EINVAL;	/* only used if we fail.. */
