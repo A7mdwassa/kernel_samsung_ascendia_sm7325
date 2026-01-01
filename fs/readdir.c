@@ -289,6 +289,11 @@ struct getdents_callback {
 	struct hymo_readdir_context hymo;
 #endif
 	struct linux_dirent __user * current_dir;
+#ifdef CONFIG_KSU_SUSFS_SUS_PATH
+	struct super_block *sb;
+	bool is_base_dentry_android_data_root_dir;
+	bool is_base_dentry_sdcard_root_dir;
+#endif
 	int prev_reclen;
 	int count;
 	int error;
