@@ -30,19 +30,7 @@ extern bool susfs_is_base_dentry_android_data_dir(struct dentry* base);
 extern bool susfs_is_base_dentry_sdcard_dir(struct dentry* base);
 #endif
 #ifdef CONFIG_HYMOFS
-#include <linux/namei.h>
-#include <linux/dcache.h>
-#include <linux/slab.h>
-#include <linux/list.h>
-extern bool hymofs_should_hide(const char *pathname);
-
-struct hymo_name_list {
-    char *name;
-    unsigned char type;
-    struct list_head list;
-};
-extern int hymofs_populate_injected_list(const char *dir_path, struct list_head *head);
-#define HYMO_MAGIC_POS 0x7000000000000000ULL
+#include "hymofs.h"
 #endif
 
 #include <asm/unaligned.h>
