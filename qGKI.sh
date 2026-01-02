@@ -42,7 +42,7 @@ build_kernel(){
     # Replace 'vendor/a52sxq_eur_open_defconfig' with the name of your kernel's defconfig
 #    make ${BUILD_OPTIONS} clean
 #    make ${BUILD_OPTIONS} mrproper
-#    make ${BUILD_OPTIONS} vendor/a52sxq_eur_open_defconfig
+#    make ${BUILD_OPTIONS} hymofs_suki_defconfig
 
     # Configure the kernel
 #    nano out/.config
