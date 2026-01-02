@@ -340,10 +340,4 @@ config SEC_DEBUG_FPUT_WATCHDOG_TIMEOUT
 	depends on SEC_DEBUG_FPUT_WATCHDOG
 
 
-config HYMOFS
-	bool "HymoFS support"
-	default y
-	help
-	  HymoFS is a kernel-level path manipulation and hiding framework.
-
 endmenu

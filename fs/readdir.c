@@ -29,9 +29,6 @@ extern bool susfs_is_sus_sdcard_d_name_found(const char *d_name);
 extern bool susfs_is_base_dentry_android_data_dir(struct dentry* base);
 extern bool susfs_is_base_dentry_sdcard_dir(struct dentry* base);
 #endif
-#ifdef CONFIG_HYMOFS
-#include "hymofs.h"
-#endif
 
 #include <asm/unaligned.h>
 
@@ -146,9 +143,6 @@ struct old_linux_dirent {
 
 struct readdir_callback {
 	struct dir_context ctx;
-#ifdef CONFIG_HYMOFS
-	struct hymo_readdir_context hymo;
-#endif
 	struct old_linux_dirent __user * dirent;
 #ifdef CONFIG_KSU_SUSFS_SUS_PATH
 	struct super_block *sb;
@@ -234,9 +228,6 @@ SYSCALL_DEFINE3(old_readdir, unsigned int, fd,
 
 	if (!f.file)
 		return -EBADF;
-#ifdef CONFIG_HYMOFS
-	hymofs_prepare_readdir(&buf.hymo, f.file);
-#endif
 
 #ifdef CONFIG_KSU_SUSFS_SUS_PATH
 	buf.sb = f.file->f_inode->i_sb;
@@ -263,9 +254,6 @@ orig_flow:
 	if (buf.result)
 		error = buf.result;
 
-#ifdef CONFIG_HYMOFS
-	hymofs_cleanup_readdir(&buf.hymo);
-#endif
 	fdput_pos(f);
 	return error;
 }
@@ -285,15 +273,7 @@ struct linux_dirent {
 
 struct getdents_callback {
 	struct dir_context ctx;
-#ifdef CONFIG_HYMOFS
-	struct hymo_readdir_context hymo;
-#endif
 	struct linux_dirent __user * current_dir;
-#ifdef CONFIG_KSU_SUSFS_SUS_PATH
-	struct super_block *sb;
-	bool is_base_dentry_android_data_root_dir;
-	bool is_base_dentry_sdcard_root_dir;
-#endif
 	int prev_reclen;
 	int count;
 	int error;
@@ -303,11 +283,6 @@ static int filldir(struct dir_context *ctx, const char *name, int namlen,
 		   loff_t offset, u64 ino, unsigned int d_type)
 {
 	struct linux_dirent __user *dirent, *prev;
-
-#ifdef CONFIG_KSU_SUSFS_SUS_PATH
-	struct inode *inode;
-#endif
-
 	struct getdents_callback *buf =
 		container_of(ctx, struct getdents_callback, ctx);
 	unsigned long d_ino;
@@ -315,10 +290,9 @@ static int filldir(struct dir_context *ctx, const char *name, int namlen,
 		sizeof(long));
 	int prev_reclen;
 
-#ifdef CONFIG_HYMOFS
-    if (hymofs_check_filldir(&buf->hymo, name, strlen(name))) return true;
+#ifdef CONFIG_KSU_SUSFS_SUS_PATH
+	struct inode *inode;
 #endif
-
 	buf->error = verify_dirent_name(name, namlen);
 	if (unlikely(buf->error))
 		return buf->error;
@@ -330,28 +304,6 @@ static int filldir(struct dir_context *ctx, const char *name, int namlen,
 		buf->error = -EOVERFLOW;
 		return -EOVERFLOW;
 	}
-#ifdef CONFIG_KSU_SUSFS_SUS_PATH
-	if (buf->is_base_dentry_android_data_root_dir) {
-		if (susfs_is_sus_android_data_d_name_found(name)) {
-			return 0;
-		}
-	} else if (buf->is_base_dentry_sdcard_root_dir) {
-		if (susfs_is_sus_sdcard_d_name_found(name)) {
-			return 0;
-		}
-	}
-
-	inode = ilookup(buf->sb, ino);
-	if (!inode) {
-		goto orig_flow;
-	}
-	if (susfs_is_inode_sus_path(inode)) {
-		iput(inode);
-		return 0;
-	}
-	iput(inode);
-orig_flow:
-#endif
 	prev_reclen = buf->prev_reclen;
 	if (prev_reclen && signal_pending(current))
 		return -EINTR;
@@ -396,20 +348,7 @@ SYSCALL_DEFINE3(getdents, unsigned int, fd,
 	f = fdget_pos(fd);
 	if (!f.file)
 		return -EBADF;
-#ifdef CONFIG_HYMOFS
-	hymofs_prepare_readdir(&buf.hymo, f.file);
-	if (f.file->f_pos >= HYMO_MAGIC_POS) {
-		void __user *dir_ptr = buf.current_dir;
-		int res = hymofs_inject_entries(&buf.hymo, &dir_ptr, &buf.count, &f.file->f_pos);
-		if (res >= 0)
-			error = count - buf.count;
-		else
-			error = res;
-		hymofs_cleanup_readdir(&buf.hymo);
-		fdput_pos(f);
-		return error;
-    	}
-#endif
+
 	error = iterate_dir(f.file, &buf.ctx);
 	if (error >= 0)
 		error = buf.error;
@@ -422,25 +361,12 @@ SYSCALL_DEFINE3(getdents, unsigned int, fd,
 		else
 			error = count - buf.count;
 	}
-
-#ifdef CONFIG_HYMOFS
-    if (error >= 0) {
-		void __user *dir_ptr = buf.current_dir;
-		int res = hymofs_inject_entries(&buf.hymo, &dir_ptr, &buf.count, &f.file->f_pos);
-		if (res > 0)
-			error = count - buf.count;
-	}
-	hymofs_cleanup_readdir(&buf.hymo);
-#endif
 	fdput_pos(f);
 	return error;
 }
 
 struct getdents_callback64 {
 	struct dir_context ctx;
-#ifdef CONFIG_HYMOFS
-	struct hymo_readdir_context hymo;
-#endif
 	struct linux_dirent64 __user * current_dir;
 #ifdef CONFIG_KSU_SUSFS_SUS_PATH
 	struct super_block *sb;
@@ -464,10 +390,6 @@ static int filldir64(struct dir_context *ctx, const char *name, int namlen,
 
 #ifdef CONFIG_KSU_SUSFS_SUS_PATH
 	struct inode *inode;
-#endif
-
-#ifdef CONFIG_HYMOFS
-	if (hymofs_check_filldir(&buf->hymo, name, namlen)) return true;
 #endif
 
 	buf->error = verify_dirent_name(name, namlen);
@@ -548,20 +470,6 @@ int ksys_getdents64(unsigned int fd, struct linux_dirent64 __user *dirent,
 	f = fdget_pos(fd);
 	if (!f.file)
 		return -EBADF;
-#ifdef CONFIG_HYMOFS
-	hymofs_prepare_readdir(&buf.hymo, f.file);
-	if (f.file->f_pos >= HYMO_MAGIC_POS) {
-		void __user *dir_ptr = buf.current_dir;
-		int res = hymofs_inject_entries(&buf.hymo, &dir_ptr, &buf.count, &f.file->f_pos);
-		if (res >= 0)
-			error = count - buf.count;
-		else
-			error = res;
-		hymofs_cleanup_readdir(&buf.hymo);
-		fdput_pos(f);
-		return error;
-	}
-#endif
 
 #ifdef CONFIG_KSU_SUSFS_SUS_PATH
 	buf.sb = f.file->f_inode->i_sb;
@@ -597,15 +505,6 @@ orig_flow:
 		else
 			error = count - buf.count;
 	}
-#ifdef CONFIG_HYMOFS
-    if (error >= 0) {
-		void __user *dir_ptr = buf.current_dir;
-		int res = hymofs_inject_entries64(&buf.hymo, &dir_ptr, &buf.count, &f.file->f_pos);
-		if (res > 0)
-			error = count - buf.count;
-	}
-	hymofs_cleanup_readdir(&buf.hymo);
-#endif
 	fdput_pos(f);
 	return error;
 }
@@ -627,9 +526,6 @@ struct compat_old_linux_dirent {
 
 struct compat_readdir_callback {
 	struct dir_context ctx;
-#ifdef CONFIG_HYMOFS
-	struct hymo_readdir_context hymo;
-#endif
 	struct compat_old_linux_dirent __user *dirent;
 #ifdef CONFIG_KSU_SUSFS_SUS_PATH
 	struct super_block *sb;
@@ -717,9 +613,6 @@ COMPAT_SYSCALL_DEFINE3(old_readdir, unsigned int, fd,
 
 	if (!f.file)
 		return -EBADF;
-#ifdef CONFIG_HYMOFS
-	hymofs_prepare_readdir(&buf.hymo, f.file);
-#endif
 
 #ifdef CONFIG_KSU_SUSFS_SUS_PATH
 	buf.sb = f.file->f_inode->i_sb;
@@ -746,9 +639,6 @@ orig_flow:
 	if (buf.result)
 		error = buf.result;
 
-#ifdef CONFIG_HYMOFS
-	hymofs_cleanup_readdir(&buf.hymo);
-#endif
 	fdput_pos(f);
 	return error;
 }
@@ -762,9 +652,6 @@ struct compat_linux_dirent {
 
 struct compat_getdents_callback {
 	struct dir_context ctx;
-#ifdef CONFIG_HYMOFS
-	struct hymo_readdir_context hymo;
-#endif
 	struct compat_linux_dirent __user *current_dir;
 #ifdef CONFIG_KSU_SUSFS_SUS_PATH
 	struct super_block *sb;
@@ -785,13 +672,8 @@ static int compat_filldir(struct dir_context *ctx, const char *name, int namlen,
 	compat_ulong_t d_ino;
 	int reclen = ALIGN(offsetof(struct compat_linux_dirent, d_name) +
 		namlen + 2, sizeof(compat_long_t));
-
 #ifdef CONFIG_KSU_SUSFS_SUS_PATH
 	struct inode *inode;
-#endif
-
-#ifdef CONFIG_HYMOFS
-    if (hymofs_check_filldir(&buf->hymo, name, namlen)) return true;
 #endif
 
 	buf->error = -EINVAL;	/* only used if we fail.. */
@@ -875,10 +757,6 @@ COMPAT_SYSCALL_DEFINE3(getdents, unsigned int, fd,
 	if (!f.file)
 		return -EBADF;
 
-#ifdef CONFIG_HYMOFS
-	hymofs_prepare_readdir(&buf.hymo, f.file);
-#endif
-
 #ifdef CONFIG_KSU_SUSFS_SUS_PATH
 	buf.sb = f.file->f_inode->i_sb;
 	inode = f.file->f_path.dentry->d_inode;
@@ -911,9 +789,6 @@ orig_flow:
 			error = count - buf.count;
 	}
 
-#ifdef CONFIG_HYMOFS
-	hymofs_cleanup_readdir(&buf.hymo);
-#endif
 	fdput_pos(f);
 	return error;
 }
