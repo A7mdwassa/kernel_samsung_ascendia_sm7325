@@ -42,10 +42,10 @@ build_kernel(){
     # Replace 'vendor/a52sxq_eur_open_defconfig' with the name of your kernel's defconfig
 #    make ${BUILD_OPTIONS} clean
 #    make ${BUILD_OPTIONS} mrproper
-    make ${BUILD_OPTIONS} no_mount_suki_defconfig
+    make ${BUILD_OPTIONS} bbg_nomount_suki_defconfig
 
     # Configure the kernel
-    nano out/.config
+#    nano out/.config
 
     # Build the kernel
     make ${BUILD_OPTIONS} Image || exit 1
