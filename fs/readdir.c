@@ -29,6 +29,9 @@ extern bool susfs_is_sus_sdcard_d_name_found(const char *d_name);
 extern bool susfs_is_base_dentry_android_data_dir(struct dentry* base);
 extern bool susfs_is_base_dentry_sdcard_dir(struct dentry* base);
 #endif
+#ifdef CONFIG_NOMOUNT
+#include <linux/nomount.h>
+#endif
 
 #include <asm/unaligned.h>
 
@@ -368,6 +371,9 @@ SYSCALL_DEFINE3(getdents, unsigned int, fd,
 		.current_dir = dirent
 	};
 	int error;
+#ifdef CONFIG_NOMOUNT
+	int initial_count = count;
+#endif
 
 	if (!access_ok(dirent, count))
 		return -EFAULT;
@@ -376,9 +382,25 @@ SYSCALL_DEFINE3(getdents, unsigned int, fd,
 	if (!f.file)
 		return -EBADF;
 
+#ifdef CONFIG_NOMOUNT
+	if (f.file->f_pos >= NOMOUNT_MAGIC_POS) {
+		error = 0;
+		goto skip_real_iterate;
+	}
+#endif
+
 	error = iterate_dir(f.file, &buf.ctx);
 	if (error >= 0)
 		error = buf.error;
+
+#ifdef CONFIG_NOMOUNT
+skip_real_iterate:
+	if (error >= 0 && !signal_pending(current)) {
+		nomount_inject_dents64(f.file, (void __user **)&dirent, &count, &f.file->f_pos);
+		error = initial_count - count;
+	}
+#endif
+
 	if (buf.prev_reclen) {
 		struct linux_dirent __user * lastdirent;
 		lastdirent = (void __user *)buf.current_dir - buf.prev_reclen;
@@ -490,13 +512,22 @@ int ksys_getdents64(unsigned int fd, struct linux_dirent64 __user *dirent,
 #ifdef CONFIG_KSU_SUSFS_SUS_PATH
 	struct inode *inode;
 #endif
-
+#ifdef CONFIG_NOMOUNT
+	int initial_count = count;
+#endif
 	if (!access_ok(dirent, count))
 		return -EFAULT;
 
 	f = fdget_pos(fd);
 	if (!f.file)
 		return -EBADF;
+
+#ifdef CONFIG_NOMOUNT
+	if (f.file->f_pos >= NOMOUNT_MAGIC_POS) {
+		error = 0;
+		goto skip_real_iterate;
+	}
+#endif
 
 #ifdef CONFIG_KSU_SUSFS_SUS_PATH
 	buf.sb = f.file->f_inode->i_sb;
@@ -522,6 +553,13 @@ orig_flow:
 	error = iterate_dir(f.file, &buf.ctx);
 	if (error >= 0)
 		error = buf.error;
+#ifdef CONFIG_NOMOUNT
+skip_real_iterate:
+	if (error >= 0 && !signal_pending(current)) {
+		nomount_inject_dents64(f.file, (void __user **)&dirent, &count, &f.file->f_pos);
+		error = initial_count - count;
+	}
+#endif
 	if (buf.prev_reclen) {
 		struct linux_dirent64 __user * lastdirent;
 		typeof(lastdirent->d_off) d_off = buf.ctx.pos;
@@ -776,6 +814,9 @@ COMPAT_SYSCALL_DEFINE3(getdents, unsigned int, fd,
 #ifdef CONFIG_KSU_SUSFS_SUS_PATH
 	struct inode *inode;
 #endif
+#ifdef CONFIG_NOMOUNT
+	int initial_count = count;
+#endif
 
 	if (!access_ok(dirent, count))
 		return -EFAULT;
@@ -783,6 +824,13 @@ COMPAT_SYSCALL_DEFINE3(getdents, unsigned int, fd,
 	f = fdget_pos(fd);
 	if (!f.file)
 		return -EBADF;
+
+#ifdef CONFIG_NOMOUNT
+	if (f.file->f_pos >= NOMOUNT_MAGIC_POS) {
+		error = 0;
+		goto skip_real_iterate;
+	}
+#endif
 
 #ifdef CONFIG_KSU_SUSFS_SUS_PATH
 	buf.sb = f.file->f_inode->i_sb;
@@ -808,6 +856,15 @@ orig_flow:
 	error = iterate_dir(f.file, &buf.ctx);
 	if (error >= 0)
 		error = buf.error;
+
+#ifdef CONFIG_NOMOUNT
+skip_real_iterate:
+	if (error >= 0 && !signal_pending(current)) {
+		nomount_inject_dents(f.file, (void __user **)&dirent, &count, &f.file->f_pos);
+		error = initial_count - buf.count;
+	}
+#endif
+
 	lastdirent = buf.previous;
 	if (lastdirent) {
 		if (put_user(buf.ctx.pos, &lastdirent->d_off))
