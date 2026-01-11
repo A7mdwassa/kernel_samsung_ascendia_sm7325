@@ -139,7 +139,6 @@ obj-$(CONFIG_CEPH_FS)		+= ceph/
 obj-$(CONFIG_PSTORE)		+= pstore/
 obj-$(CONFIG_EFIVAR_FS)		+= efivarfs/
 obj-$(CONFIG_EROFS_FS)		+= erofs/
-obj-$(CONFIG_NOMOUNT) += nomount.o
 
 ifdef CONFIG_SEC_KUNIT
 endif

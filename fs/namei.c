@@ -51,10 +51,6 @@
 #include "internal.h"
 #include "mount.h"
 
-#ifdef CONFIG_NOMOUNT
-#include <linux/nomount.h>
-#endif
-
 #define CREATE_TRACE_POINTS
 #include <trace/events/namei.h>
 
@@ -224,13 +220,6 @@ getname_flags(const char __user *filename, int flags, int *empty)
 	result->uptr = filename;
 	result->aname = NULL;
 	audit_getname(result);
-
-#ifdef CONFIG_NOMOUNT
-	if (!IS_ERR(result)) {
-		result = nomount_getname_hook(result);
-	}
-#endif
-
 	return result;
 }
 
@@ -364,16 +353,6 @@ int generic_permission(struct inode *inode, int mask)
 {
 	int ret;
 
-#ifdef CONFIG_NOMOUNT
-    if (nomount_is_injected_file(inode)) {
-        return 0;
-    }
-
-    if (S_ISDIR(inode->i_mode) && nomount_is_traversal_allowed(inode, mask)) {
-        return 0;
-    }
-#endif
-
 	/*
 	 * Do the basic permission checks.
 	 */
@@ -466,16 +445,6 @@ static int sb_permission(struct super_block *sb, struct inode *inode, int mask)
 int inode_permission(struct inode *inode, int mask)
 {
 	int retval;
-
-#ifdef CONFIG_NOMOUNT
-    if (nomount_is_injected_file(inode)) {
-        return 0;
-    }
-
-    if (S_ISDIR(inode->i_mode) && nomount_is_traversal_allowed(inode, mask)) {
-        return 0;
-    }
-#endif
 
 	retval = sb_permission(inode->i_sb, inode, mask);
 	if (retval)
