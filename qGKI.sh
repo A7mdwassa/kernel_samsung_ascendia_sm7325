@@ -19,6 +19,23 @@ export LD_LIBRARY_PATH="${HOME}/toolchains/clang-r383902b1/lib:${LD_LIBRARY_PATH
 export BUILD_CROSS_COMPILE_COMPAT="${HOME}/toolchains/gcc-arm/bin/arm-linux-androideabi-"
 export BUILD_CROSS_COMPILE="${HOME}/toolchains/gcc/bin/aarch64-linux-androidkernel-"
 export BUILD_CC="${HOME}/toolchains/clang-r383902b1/bin/clang"
+
+export PATH="$HOME/toolchains/clang-r383902b1/bin:${HOME}/toolchains/gcc/bin:$PATH"
+
+export LLVM=1
+export LLVM_IAS=1
+
+export CC=clang
+export LD=ld.lld
+export NM=llvm-nm
+export OBJCOPY=llvm-objcopy
+export OBJDUMP=llvm-objdump
+export STRIP=llvm-strip
+
+export CLANG_TRIPLE=aarch64-linux-gnu-
+export CROSS_COMPILE=aarch64-linux-androidkernel-
+export CROSS_COMPILE_COMPAT=arm-linux-androideabi-
+
 # Build options for the kernel
 export BUILD_OPTIONS="
 -C ${KERNEL_ROOT} \
@@ -42,7 +59,9 @@ build_kernel(){
     # Replace 'vendor/a52sxq_eur_open_defconfig' with the name of your kernel's defconfig
 #    make ${BUILD_OPTIONS} clean
 #    make ${BUILD_OPTIONS} mrproper
-    make ${BUILD_OPTIONS} bbg_nomount_suki_defconfig
+    make ${BUILD_OPTIONS} vendor/a52sxq_eur_open_defconfig
+
+    ./scripts/kconfig/merge_config.sh -O ${KERNEL_ROOT}/out arch/arm64/configs/vendor/a52sxq_eur_open_defconfig arch/arm64/configs/ksu.config arch/arm64/configs/bbg.config arch/arm64/configs/nomount.config
 
     # Configure the kernel
 #    nano out/.config
