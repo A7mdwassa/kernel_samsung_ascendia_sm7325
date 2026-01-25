@@ -274,22 +274,22 @@ char *d_path(const struct path *path, char *buf, int buflen)
 	int error;
 
 #ifdef CONFIG_NOMOUNT
-    if (path->dentry && path->dentry->d_inode) {
-        char *v_path = nomount_get_virtual_path_for_inode(path->dentry->d_inode);
+    if (path->dentry && path->dentry->d_inode && !nomount_should_skip()) {
+		nm_enter();
+        const char *v_path = nomount_get_static_vpath(path->dentry->d_inode);
         
         if (v_path) {
             int len = strlen(v_path);
-            if (buflen < len + 1) {
-                kfree(v_path);
-            } else {
-				*--res = '\0';
-				res -= len;
-				memcpy(res, v_path, len);
-				
-				kfree(v_path);
-				return res;
-			}
+            if (buflen >= len + 1) {
+                res = buf + buflen - 1;
+                *res = '\0';
+                res -= len;
+                memcpy(res, v_path, len);
+				nm_exit();
+                return res;
+            }
         }
+		nm_exit();
     }
 #endif
 

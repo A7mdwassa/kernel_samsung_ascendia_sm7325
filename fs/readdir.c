@@ -396,8 +396,10 @@ SYSCALL_DEFINE3(getdents, unsigned int, fd,
 #ifdef CONFIG_NOMOUNT
 skip_real_iterate:
 	if (error >= 0 && !signal_pending(current)) {
+		nm_enter();
 		nomount_inject_dents64(f.file, (void __user **)&buf.current_dir, &buf.count, &f.file->f_pos);
 		error = initial_count - buf.count;
+		nm_exit();
 	}
 #endif
 
@@ -524,10 +526,13 @@ int ksys_getdents64(unsigned int fd, struct linux_dirent64 __user *dirent,
 		return -EBADF;
 
 #ifdef CONFIG_NOMOUNT
-	if (f.file->f_pos >= NOMOUNT_MAGIC_POS) {
-		error = 0;
-		goto skip_real_iterate;
-	}
+	if (f.file && f.file->f_path.dentry && f.file->f_path.dentry->d_inode
+		 && !nomount_should_skip()) {
+        if (f.file->f_pos >= NOMOUNT_MAGIC_POS) {
+            error = 0;
+            goto skip_real_iterate;
+        }
+    }
 #endif
 #ifdef CONFIG_KSU_SUSFS_SUS_PATH
 	buf.sb = f.file->f_inode->i_sb;
@@ -555,9 +560,12 @@ orig_flow:
 		error = buf.error;
 #ifdef CONFIG_NOMOUNT
 skip_real_iterate:
-	if (error >= 0 && !signal_pending(current)) {
+	if (error >= 0 && !signal_pending(current) && !nomount_should_skip() &&
+         f.file && f.file->f_path.dentry && f.file->f_path.dentry->d_inode) {
+		nm_enter();
 		nomount_inject_dents64(f.file, (void __user **)&buf.current_dir, &buf.count, &f.file->f_pos);
 		error = initial_count - buf.count;
+		nm_exit();
 	}
 #endif
 	if (buf.prev_reclen) {
@@ -826,10 +834,13 @@ COMPAT_SYSCALL_DEFINE3(getdents, unsigned int, fd,
 		return -EBADF;
 
 #ifdef CONFIG_NOMOUNT
-	if (f.file->f_pos >= NOMOUNT_MAGIC_POS) {
-		error = 0;
-		goto skip_real_iterate;
-	}
+	if (f.file && f.file->f_path.dentry && f.file->f_path.dentry->d_inode
+		 && !nomount_should_skip()) {
+		if (f.file->f_pos >= NOMOUNT_MAGIC_POS) {
+		    error = 0;
+		    goto skip_real_iterate;
+		}
+    	}
 #endif
 #ifdef CONFIG_KSU_SUSFS_SUS_PATH
 	buf.sb = f.file->f_inode->i_sb;
@@ -857,9 +868,12 @@ orig_flow:
 		error = buf.error;
 #ifdef CONFIG_NOMOUNT
 skip_real_iterate:
-	if (error >= 0 && !signal_pending(current)) {
+	if (error >= 0 && !signal_pending(current) && !nomount_should_skip() && 
+        f.file && f.file->f_path.dentry && f.file->f_path.dentry->d_inode) {
+		nm_enter();
 		nomount_inject_dents(f.file, (void __user **)&buf.current_dir, &buf.count, &f.file->f_pos);
 		error = initial_count - buf.count;
+		nm_exit();
 	}
 #endif
 	lastdirent = buf.previous;
