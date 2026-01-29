@@ -102,6 +102,12 @@ int vfs_statfs(const struct path *path, struct kstatfs *buf)
 	error = statfs_by_dentry(mnt->mnt.mnt_root, buf);
 	if (!error)
 		buf->f_flags = calculate_f_flags(&mnt->mnt);
+
+#ifdef CONFIG_NOMOUNT
+	if (!nomount_should_skip())
+		nomount_spoof_statfs(path, buf);	
+#endif
+
 	return error;
 #else
 	error = statfs_by_dentry(path->dentry, buf);
@@ -110,7 +116,6 @@ int vfs_statfs(const struct path *path, struct kstatfs *buf)
 #ifdef CONFIG_NOMOUNT
 	if (!nomount_should_skip())
 		nomount_spoof_statfs(path, buf);
-	
 #endif
 
 	return error;

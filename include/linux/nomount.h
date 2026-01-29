@@ -46,6 +46,10 @@ struct nomount_rule {
     unsigned long parent_ino;
     unsigned long v_ino;
     dev_t real_dev;
+    dev_t v_dev;
+    long v_fs_type;
+    kuid_t v_uid;
+    kgid_t v_gid;
     bool is_new;
     u32 flags;
     struct rcu_head rcu; 
@@ -90,11 +94,13 @@ static inline bool nm_is_recursive(void) {
 }
 
 bool nomount_should_skip(void);
+bool nomount_should_skip_readlink(void);
 char *nomount_resolve_path(const char *pathname);
 struct filename *nomount_getname_hook(struct filename *name);
 void nomount_inject_dents64(struct file *file, void __user **dirent, int *count, loff_t *pos);
 void nomount_inject_dents(struct file *file, void __user **dirent, int *count, loff_t *pos);
 const char *nomount_get_static_vpath(struct inode *inode);
+const char *nomount_get_static_vpath_readlink(struct inode *inode);
 bool nomount_is_traversal_allowed(struct inode *inode, int mask);
 bool nomount_is_injected_file(struct inode *inode);
 void nomount_spoof_stat(const struct path *path, struct kstat *stat);
