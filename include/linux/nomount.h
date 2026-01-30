@@ -29,6 +29,7 @@
 #define NOMOUNT_IOC_GET_LIST _IOR(NOMOUNT_IOC_MAGIC, 7, int)
 #define NOMOUNT_IOC_REFRESH _IO(NOMOUNT_MAGIC_CODE, 8)
 #define MAX_LIST_BUFFER_SIZE (64 * 1024)
+#define NM_MAX_PARENTS 16
 
 struct nomount_ioctl_data {
     char __user *virtual_path;
@@ -50,6 +51,10 @@ struct nomount_rule {
     long v_fs_type;
     kuid_t v_uid;
     kgid_t v_gid;
+
+    unsigned int parent_count;
+    unsigned long parent_inos[NM_MAX_PARENTS];
+
     bool is_new;
     u32 flags;
     struct rcu_head rcu; 

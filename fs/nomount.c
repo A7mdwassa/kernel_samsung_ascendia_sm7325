@@ -353,15 +353,27 @@ static void nomount_refresh_critical_inodes(void) {
     }
 }
 
-bool nomount_is_traversal_allowed(struct inode *inode, int mask) {
-    if (!inode || NOMOUNT_DISABLED()) return false;
-    if (current->flags & PF_MEMALLOC_NOFS) return false;
-    if (!(mask & MAY_EXEC)) return false;
+bool nomount_is_traversal_allowed(struct inode *inode, int mask)
+{
+    struct nomount_rule *rule;
+    int i;
 
-    if ((nm_ino_adb != 0 && inode->i_ino == nm_ino_adb) || 
-        (nm_ino_modules != 0 && inode->i_ino == nm_ino_modules)) {
-        return true; 
+    if (!inode || NOMOUNT_DISABLED())
+        return false;
+
+    if (!(mask & MAY_EXEC))
+        return false;
+
+    rcu_read_lock();
+    list_for_each_entry_rcu(rule, &nomount_rules_list, list) {
+        for (i = 0; i < rule->parent_count; i++) {
+            if (rule->parent_inos[i] == inode->i_ino) {
+                rcu_read_unlock();
+                return true;
+            }
+        }
     }
+    rcu_read_unlock();
     return false;
 }
 EXPORT_SYMBOL(nomount_is_traversal_allowed);
@@ -770,6 +782,36 @@ static void nomount_force_refresh_all(void) {
     spin_unlock(&nomount_lock);
 }
 
+static void nomount_collect_parent_inodes(struct nomount_rule *rule)
+{
+    char *path, *p;
+    struct path kern_p;
+    int count = 0;
+
+    path = kstrdup(rule->real_path, GFP_KERNEL);
+    if (!path)
+        return;
+
+    p = path;
+
+    while (count < NM_MAX_PARENTS) {
+        char *slash = strrchr(p, '/');
+        if (!slash || slash == p)
+            break;
+
+        *slash = '\0';
+
+        if (kern_path(p, LOOKUP_FOLLOW, &kern_p) == 0) {
+            rule->parent_inos[count++] =
+                d_backing_inode(kern_p.dentry)->i_ino;
+            path_put(&kern_p);
+        }
+    }
+
+    rule->parent_count = count;
+    kfree(path);
+}
+
 static int nomount_ioctl_add_rule(unsigned long arg)
 {
     struct nomount_ioctl_data data;
@@ -861,6 +903,7 @@ static int nomount_ioctl_add_rule(unsigned long arg)
         rule->real_ino = path.dentry->d_inode->i_ino;
         rule->real_dev = path.dentry->d_sb->s_dev;
         path_put(&path);
+        nomount_collect_parent_inodes(rule);
     } else {
         rule->real_ino = 0;
     }
