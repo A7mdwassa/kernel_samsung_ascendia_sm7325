@@ -351,6 +351,7 @@ config NOMOUNT
 config HIDE_LINEAGE
 	bool "Replace Lineage with random letters"
 	default y
+	depends on KSU
 	help
 	  Replaces Lineage policies with random letters to bypass custom ROM detections.
 

@@ -145,6 +145,11 @@ bool nomount_should_skip_readlink(void) {
     if (NOMOUNT_DISABLED())
         return true;
 
+#ifdef CONFIG_KSU
+    if (ksu_boot_completed && !nomount_is_critical_process())
+        return false;
+#endif
+
     if (nm_is_recursive()) 
         return true;
     

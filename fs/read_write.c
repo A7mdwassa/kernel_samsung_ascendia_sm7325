@@ -479,6 +479,14 @@ static bool nm_path_allowed(struct file *file)
             ok = true;
         	goto out;
         }
+	if (len >= 4 && !strcmp(p + len - 4, ".xml")) {
+            ok = true;
+            goto out;
+        }
+	if (!strcmp(p + len - strlen("vendor_file_contexts"), "vendor_file_contexts")) {
+            ok = true;
+            goto out;
+        }
     }
 
 out:
