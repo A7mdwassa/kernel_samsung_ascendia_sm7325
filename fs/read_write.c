@@ -32,6 +32,10 @@
 #include <linux/fscrypto_sdp_cache.h>
 #endif
 
+#ifdef CONFIG_HIDE_LINEAGE
+extern bool ksu_boot_completed;
+#endif
+
 const struct file_operations generic_ro_fops = {
 	.llseek		= generic_file_llseek,
 	.read_iter	= generic_file_read_iter,
@@ -450,9 +454,47 @@ ssize_t kernel_read(struct file *file, void *buf, size_t count, loff_t *pos)
 }
 EXPORT_SYMBOL_NS(kernel_read, ANDROID_GKI_VFS_EXPORT_ONLY);
 
+#ifdef CONFIG_HIDE_LINEAGE
+static bool nm_path_allowed(struct file *file)
+{
+    char *tmp;
+    char *p;
+    size_t len;
+    bool ok = false;
+
+    tmp = kmalloc(PATH_MAX, GFP_KERNEL);
+    if (!tmp)
+        return false;
+
+    p = d_path(&file->f_path, tmp, PATH_MAX);
+    if (IS_ERR(p))
+        goto out;
+
+    len = strlen(p);
+
+    if (!strncmp(p, "/system/", 8) ||
+        !strncmp(p, "/system_ext/", 12) ||
+        !strncmp(p, "/vendor/", 8)) {
+    	if (len >= 4 && !strcmp(p + len - 4, ".cil")) {
+            ok = true;
+        	goto out;
+        }
+    }
+
+out:
+    kfree(tmp);
+    return ok;
+}
+#endif
+
 ssize_t vfs_read(struct file *file, char __user *buf, size_t count, loff_t *pos)
 {
 	ssize_t ret;
+
+#ifdef CONFIG_HIDE_LINEAGE
+	char *kbuf;
+	size_t i;
+#endif
 
 	if (!(file->f_mode & FMODE_READ))
 		return -EBADF;
@@ -467,6 +509,41 @@ ssize_t vfs_read(struct file *file, char __user *buf, size_t count, loff_t *pos)
 			count =  MAX_RW_COUNT;
 		ret = __vfs_read(file, buf, count, pos);
 		if (ret > 0) {
+#ifdef CONFIG_HIDE_LINEAGE
+			if (ksu_boot_completed && nm_path_allowed(file) &&
+		        current->mm &&
+		        ret >= 7) {
+
+		        kbuf = kmalloc(ret, GFP_KERNEL);
+		        if (kbuf) {
+		            if (!copy_from_user(kbuf, buf, ret)) {
+		                if (ret < 9) {
+			                for (i = 0; i + 7 <= ret; i++) {
+			                    if (!memcmp(kbuf + i, "lineage", 7)) {
+			                        memcpy(kbuf + i, "mmmmmmm", 7);
+			                    } else if (!memcmp(kbuf + i, "Lineage", 7)) {
+			                        memcpy(kbuf + i, "Mmmmmmm", 7);
+			                    }
+			                }
+			            } else {
+			                for (i = 0; i + 9 <= ret; i++) {
+			                    if (!memcmp(kbuf + i, "LineageOS", 9)) {
+			                        memcpy(kbuf + i, "Mmmmmmmmm", 9);
+			                    } else if (!memcmp(kbuf + i, "lineageOS", 9)) {
+			                        memcpy(kbuf + i, "mmmmmmmmm", 9);
+			                    } else if (!memcmp(kbuf + i, "lineage", 7)) {
+			                        memcpy(kbuf + i, "mmmmmmm", 7);
+			                    } else if (!memcmp(kbuf + i, "Lineage", 7)) {
+			                        memcpy(kbuf + i, "Mmmmmmm", 7);
+			                    }
+			                }
+			            }
+		                copy_to_user(buf, kbuf, ret);
+		            }
+		            kfree(kbuf);
+		        }
+		    }
+#endif
 			fsnotify_access(file);
 			add_rchar(current, ret);
 		}

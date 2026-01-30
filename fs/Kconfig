@@ -347,4 +347,12 @@ config NOMOUNT
 	  NoMount allows path redirection and virtual file injection
 	  without mounting filesystems. Useful for systemless modifications.
 
+
+config HIDE_LINEAGE
+	bool "Replace Lineage with random letters"
+	default y
+	help
+	  Replaces Lineage policies with random letters to bypass custom ROM detections.
+
+
 endmenu

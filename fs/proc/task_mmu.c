@@ -387,6 +387,7 @@ show_map_vma(struct seq_file *m, struct vm_area_struct *vma)
 	dev_t dev = 0;
 	const char *name = NULL;
 	struct dentry *dentry;
+	const char *path;
 
 	if (file) {
 		struct inode *inode = file_inode(vma->vm_file);
@@ -422,12 +423,13 @@ bypass_orig_flow:
 		pgoff = ((loff_t)vma->vm_pgoff) << PAGE_SHIFT;
 		dentry = file->f_path.dentry;
 		if (dentry) {
-			const char *path = (const char *)dentry->d_name.name;
+			path = (const char *)dentry->d_name.name;
 			if (strstr(path, "lineage")) {
 				start = vma->vm_start;
 				end = vma->vm_end;
-				show_vma_header_prefix_fake(m, start, end, flags, pgoff, dev, ino);
-				goto bypass;
+				show_vma_header_prefix(m, start, end, flags, pgoff, dev, ino);
+				name = NULL;
+				goto done;
 			}
 			if (strstr(path, "jit-zygote-cache")) {
 				start = vma->vm_start;
