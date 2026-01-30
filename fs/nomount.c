@@ -711,20 +711,29 @@ void nomount_spoof_statfs(const struct path *path, struct kstatfs *buf)
 {
     struct nomount_rule *rule;
     struct inode *inode;
+    struct path v_path;
 
-    if (!path || !buf || nomount_should_skip()) return;
+    if (!path || !buf) return;
 
     inode = d_backing_inode(path->dentry);
     if (!inode) return;
 
+    nm_enter();
     rcu_read_lock();
-    hash_for_each_possible_rcu(nomount_rules_ht, rule, node, inode->i_ino) {
+    list_for_each_entry_rcu(rule, &nomount_rules_list, list) {
         if (rule->real_ino == inode->i_ino) {
-            buf->f_type = rule->v_fs_type;
-            break;
+            rcu_read_unlock();
+            if (kern_path(rule->virtual_path, LOOKUP_FOLLOW, &v_path) == 0) {
+                buf->f_type = v_path.dentry->d_sb->s_magic;
+                path_put(&v_path);
+            }
+            
+            nm_exit();
+            return;
         }
     }
     rcu_read_unlock();
+    nm_exit();
 }
 
 /* Forces cache flushing for all active rules. */
