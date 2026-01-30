@@ -1,0 +1,276 @@
+diff --git a/KernelSU b/KernelSU
+index 2fed8fefe..fd77ddea9 160000
+--- a/KernelSU
++++ b/KernelSU
+@@ -1 +1 @@
+-Subproject commit 2fed8fefefcbb08ce8e74f4e031384aec0cf2020
++Subproject commit fd77ddea91d53d9c88cf007fc4abc9a2141b203c
+diff --git a/fs/nomount.c b/fs/nomount.c
+index 7df9d8593..f233cdcef 100644
+--- a/fs/nomount.c
++++ b/fs/nomount.c
+@@ -34,10 +34,11 @@ struct linux_dirent {
+     char        d_name[];
+ };
+ 
+-static DEFINE_HASHTABLE(nomount_rules_ht, NOMOUNT_HASH_BITS);
+ static DEFINE_HASHTABLE(nomount_dirs_ht, NOMOUNT_HASH_BITS);
+ static DEFINE_HASHTABLE(nomount_uid_ht, NOMOUNT_HASH_BITS);
+-
++static DEFINE_HASHTABLE(nomount_rules_by_vpath, NOMOUNT_HASH_BITS);
++static DEFINE_HASHTABLE(nomount_rules_by_real_ino, NOMOUNT_HASH_BITS);
++static DEFINE_HASHTABLE(nomount_rules_by_v_ino,    NOMOUNT_HASH_BITS);
+ static LIST_HEAD(nomount_rules_list);
+ static DEFINE_SPINLOCK(nomount_lock);
+ DEFINE_PER_CPU(int, nm_recursion_level);
+@@ -275,14 +276,23 @@ const char *nomount_get_static_vpath(struct inode *inode) {
+     if (!inode || NOMOUNT_DISABLED()) return NULL;
+ 
+     rcu_read_lock();
+-    hash_for_each_possible_rcu(nomount_rules_ht, rule, node, inode->i_ino) {
+-        if (rule->real_ino == inode->i_ino || rule->v_ino == inode->i_ino) {
+-            if (!nomount_should_skip()) {
++
++    hash_for_each_possible_rcu(nomount_rules_by_real_ino, rule, real_ino_node, inode->i_ino) {
++        if (rule->real_ino == inode->i_ino) {
++            path_ptr = rule->virtual_path;
++            break;
++        }
++    }
++
++    if (!path_ptr) {
++        hash_for_each_possible_rcu(nomount_rules_by_v_ino, rule, v_ino_node, inode->i_ino) {
++            if (rule->v_ino == inode->i_ino) {
+                 path_ptr = rule->virtual_path;
++                break;
+             }
+-            break;
+         }
+     }
++
+     rcu_read_unlock();
+     return path_ptr;
+ }
+@@ -386,7 +396,7 @@ bool nomount_is_injected_file(struct inode *inode) {
+     if (current->flags & PF_MEMALLOC_NOFS) return false;
+ 
+     rcu_read_lock();
+-    hash_for_each_possible_rcu(nomount_rules_ht, rule, node, inode->i_ino) {
++    hash_for_each_possible_rcu(nomount_rules_by_real_ino, rule, real_ino_node, inode->i_ino) {
+         if (rule->real_ino == inode->i_ino) {
+             found = true;
+             break;
+@@ -430,7 +440,7 @@ char *nomount_resolve_path(const char *pathname) {
+     hash = full_name_hash(NULL, pathname, strlen(pathname));
+ 
+     rcu_read_lock();
+-    hash_for_each_possible_rcu(nomount_rules_ht, rule, node, hash) {
++    hash_for_each_possible_rcu(nomount_rules_by_vpath, rule, vpath_node, hash) {
+         if (strcmp(pathname, rule->virtual_path) == 0) {
+             rcu_read_unlock();
+             return rule->real_path;
+@@ -719,7 +729,7 @@ void nomount_spoof_stat(const struct path *path, struct kstat *stat)
+     if (!inode) return;
+ 
+     rcu_read_lock();
+-    hash_for_each_possible_rcu(nomount_rules_ht, rule, node, inode->i_ino) {
++    hash_for_each_possible_rcu(nomount_rules_by_real_ino, rule, real_ino_node, inode->i_ino) {
+         if (rule->real_ino == inode->i_ino) {
+             stat->ino = rule->v_ino;
+             if (rule->v_dev != 0)
+@@ -911,7 +921,14 @@ static int nomount_ioctl_add_rule(unsigned long arg)
+     search_hash = full_name_hash(NULL, v_path, strlen(v_path));
+     
+     spin_lock(&nomount_lock);
+-    hash_add_rcu(nomount_rules_ht, &rule->node, search_hash);
++    hash_add_rcu(nomount_rules_by_vpath, &rule->vpath_node, full_name_hash(NULL, rule->virtual_path, rule->vp_len));
++
++    if (rule->real_ino)
++        hash_add_rcu(nomount_rules_by_real_ino, &rule->real_ino_node, rule->real_ino);
++
++    if (rule->v_ino)
++        hash_add_rcu(nomount_rules_by_v_ino, &rule->v_ino_node, rule->v_ino);
++
+     list_add_tail(&rule->list, &nomount_rules_list);
+     spin_unlock(&nomount_lock);
+ 
+@@ -933,58 +950,84 @@ static int nomount_ioctl_add_rule(unsigned long arg)
+ static int nomount_ioctl_del_rule(unsigned long arg)
+ {
+     struct nomount_ioctl_data data;
+-    struct nomount_rule *rule = NULL;
++    struct nomount_rule *rule, *victim = NULL;
+     struct hlist_node *tmp;
+     char *v_path;
+-    int bkt;
+-    bool found = false;
++    u32 hash;
+ 
+     if (copy_from_user(&data, (void __user *)arg, sizeof(data)))
+         return -EFAULT;
+ 
+     v_path = strndup_user(data.virtual_path, PATH_MAX);
+-    if (IS_ERR(v_path)) return PTR_ERR(v_path);
++    if (IS_ERR(v_path))
++        return PTR_ERR(v_path);
++
++    hash = full_name_hash(NULL, v_path, strlen(v_path));
+ 
+     spin_lock(&nomount_lock);
+-    hash_for_each_safe(nomount_rules_ht, bkt, tmp, rule, node) {
++    hash_for_each_possible_safe(nomount_rules_by_vpath,
++                                rule, tmp, vpath_node, hash) {
+         if (strcmp(rule->virtual_path, v_path) == 0) {
+-            hash_del_rcu(&rule->node);
++            hash_del_rcu(&rule->vpath_node);
++            if (rule->real_ino)
++                hash_del_rcu(&rule->real_ino_node);
++            if (rule->v_ino)
++                hash_del_rcu(&rule->v_ino_node);
+             list_del(&rule->list);
+-            found = true;
+-            break; 
++            victim = rule;
++            break;
+         }
+     }
+     spin_unlock(&nomount_lock);
+ 
+-    if (found && rule) {
+-        call_rcu(&rule->rcu, nomount_free_rule_rcu);
++    kfree(v_path);
++
++    if (victim) {
++        call_rcu(&victim->rcu, nomount_free_rule_rcu);
++        return 0;
+     }
+ 
+-    kfree_rcu(rule, rcu);
+-    return found ? 0 : -ENOENT;
++    return -ENOENT;
+ }
+ 
+ static int nomount_ioctl_clear_rules(void)
+ {
+-    struct nomount_rule *rule;
+-    struct nomount_uid_node *uid_node;
+-    struct hlist_node *tmp;
++    struct nomount_rule *rule, *tmp_rule;
++    struct nomount_uid_node *uid_node, *tmp_uid;
++    struct hlist_node *hlist_tmp;
++    LIST_HEAD(rule_victims);
++    LIST_HEAD(uid_victims);
+     int bkt;
+ 
+     spin_lock(&nomount_lock);
+-    
+-    hash_for_each_safe(nomount_rules_ht, bkt, tmp, rule, node) {
+-        hash_del_rcu(&rule->node);
++
++    list_for_each_entry_safe(rule, tmp_rule, &nomount_rules_list, list) {
++        hash_del_rcu(&rule->vpath_node);
++        if (rule->real_ino)
++            hash_del_rcu(&rule->real_ino_node);
++        if (rule->v_ino)
++            hash_del_rcu(&rule->v_ino_node);
+         list_del(&rule->list);
+-        call_rcu(&rule->rcu, nomount_free_rule_rcu);
++        list_add(&rule->list, &rule_victims);
+     }
+ 
+-    hash_for_each_safe(nomount_uid_ht, bkt, tmp, uid_node, node) {
++    hash_for_each_safe(nomount_uid_ht, bkt, hlist_tmp, uid_node, node) {
+         hash_del_rcu(&uid_node->node);
+-        kfree(uid_node); 
++        list_add(&uid_node->list, &uid_victims);
+     }
+ 
+     spin_unlock(&nomount_lock);
++
++    list_for_each_entry_safe(rule, tmp_rule, &rule_victims, list) {
++        list_del(&rule->list);
++        call_rcu(&rule->rcu, nomount_free_rule_rcu);
++    }
++
++    list_for_each_entry_safe(uid_node, tmp_uid, &uid_victims, list) {
++        list_del(&uid_node->list);
++        kfree_rcu(uid_node, rcu);
++    }
++
+     return 0;
+ }
+ 
+@@ -1115,7 +1158,9 @@ static int __init nomount_init(void) {
+     spin_lock_init(&nomount_lock);
+ 
+     /* Initialize hash tables */
+-    hash_init(nomount_rules_ht);
++    hash_init(nomount_rules_by_vpath);
++    hash_init(nomount_rules_by_real_ino);
++    hash_init(nomount_rules_by_v_ino);
+     hash_init(nomount_dirs_ht);
+     hash_init(nomount_uid_ht);
+ 
+diff --git a/fs/proc/task_mmu.c b/fs/proc/task_mmu.c
+index 269f7b9be..cd09bd0e0 100644
+--- a/fs/proc/task_mmu.c
++++ b/fs/proc/task_mmu.c
+@@ -22,6 +22,11 @@
+ #include <linux/mm_inline.h>
+ #include <linux/freezer.h>
+ #include <linux/ctype.h>
++
++#ifdef CONFIG_NOMOUNT
++#include <linux/nomount.h>
++#endif
++
+ #if defined(CONFIG_KSU_SUSFS_SUS_KSTAT) || defined(CONFIG_KSU_SUSFS_SUS_MAP)
+ #include <linux/susfs_def.h>
+ #endif
+@@ -424,6 +429,17 @@ show_map_vma(struct seq_file *m, struct vm_area_struct *vma)
+ 		dentry = file->f_path.dentry;
+ 		if (dentry) {
+ 			path = (const char *)dentry->d_name.name;
++
++#ifdef CONFIG_NOMOUNT
++			if (nomount_resolve_path(path) != NULL) {
++				start = vma->vm_start;
++				end = vma->vm_end;
++				show_vma_header_prefix(m, start, end, flags, pgoff, dev, ino);
++				name = NULL;
++				goto done;
++			}
++#endif
++
+ 			if (strstr(path, "lineage")) {
+ 				start = vma->vm_start;
+ 				end = vma->vm_end;
+diff --git a/include/linux/nomount.h b/include/linux/nomount.h
+index 2e6983fbe..d0de0cc12 100644
+--- a/include/linux/nomount.h
++++ b/include/linux/nomount.h
+@@ -38,7 +38,15 @@ struct nomount_ioctl_data {
+ };
+ 
+ struct nomount_rule {
+-    struct hlist_node node;
++    /* hash by virtual path */
++    struct hlist_node vpath_node;
++
++    /* hash by real inode */
++    struct hlist_node real_ino_node;
++
++    /* hash by virtual inode */
++    struct hlist_node v_ino_node;
++
+     struct list_head list;
+     size_t vp_len;
+     char *virtual_path;
+@@ -78,6 +86,7 @@ struct nomount_child_name {
+ struct nomount_uid_node {
+     uid_t uid;
+     struct hlist_node node;
++    struct list_head list;
+     struct rcu_head rcu;
+ };
+ 
