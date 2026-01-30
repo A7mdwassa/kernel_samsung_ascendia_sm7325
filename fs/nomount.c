@@ -23,6 +23,10 @@ atomic_t nomount_enabled = ATOMIC_INIT(0);
 EXPORT_SYMBOL(nomount_enabled);
 #define NOMOUNT_DISABLED() (atomic_read(&nomount_enabled) == 0)
 
+#ifdef CONFIG_KSU
+extern bool ksu_boot_completed;
+#endif
+
 struct linux_dirent {
     unsigned long   d_ino;
     unsigned long   d_off;
@@ -105,6 +109,11 @@ bool nomount_should_skip(void) {
     if (NOMOUNT_DISABLED())
         return true;
 
+#ifdef CONFIG_KSU
+    if (ksu_boot_completed && !nomount_is_critical_process())
+        return false;
+#endif
+    
     if (nm_is_recursive()) 
         return true;
     
