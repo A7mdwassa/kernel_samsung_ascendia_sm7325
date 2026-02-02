@@ -99,15 +99,19 @@ extern atomic_t nomount_enabled;
 DECLARE_PER_CPU(int, nm_recursion_level);
 
 static inline void nm_enter(void) {
-    this_cpu_inc(nm_recursion_level);
+    preempt_disable();
+    __this_cpu_inc(nm_recursion_level);
+    preempt_enable();
 }
 
 static inline void nm_exit(void) {
-    this_cpu_dec(nm_recursion_level);
+    preempt_disable();
+    __this_cpu_dec(nm_recursion_level);
+    preempt_enable();
 }
 
 static inline bool nm_is_recursive(void) {
-    return this_cpu_read(nm_recursion_level) > 0;
+    return __this_cpu_read(nm_recursion_level) > 0;
 }
 
 bool nomount_should_skip(void);

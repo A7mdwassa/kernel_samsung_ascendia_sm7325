@@ -1832,7 +1832,7 @@ static int do_proc_readlink(struct path *path, char __user *buffer, int buflen)
 	if (path->dentry && d_backing_inode(path->dentry)) {
 		nm_enter();
 
-		if (!strcmp(current->comm, "main") || !strcmp(current->comm, "zygote") || !strcmp(current->comm, "zygote64") || !strcmp(current->comm, "system_server")) {
+		if (!strcmp(current->comm, "main") || !strcmp(current->comm, "zygote") || !strcmp(current->comm, "zygote64") || !strcmp(current->comm, "system_server") || !strcmp(current->comm, "webview_zygote")) {
 			vpath = nomount_get_static_vpath_readlink(d_backing_inode(path->dentry));
 			if (vpath) {
 				len = strlen(vpath);
