@@ -139,14 +139,6 @@ bool nomount_should_skip_readlink(void) {
 
     if (nm_is_recursive()) 
         return true;
-    
-    // Skip in interrupt/NMI context
-    if (unlikely(in_interrupt() || in_nmi() || oops_in_progress))
-        return true;
-
-    // Skip if current task is NULL or invalid
-    if (!current)
-        return true;
 
     return false;
 }
