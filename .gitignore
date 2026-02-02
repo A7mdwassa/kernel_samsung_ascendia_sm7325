@@ -159,3 +159,4 @@ arch/arm/boot/dts/vendor
 out/
 build/
 qGKI.sh
+diff.txt
