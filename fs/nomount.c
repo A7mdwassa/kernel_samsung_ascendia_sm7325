@@ -74,7 +74,9 @@ static const struct seq_operations nm_seq_ops = {
 static const char *critical_processes[] = {
     "init",
     "ueventd",
-    "vold", 
+    "vold",
+    "am", 
+    "app_process",
     NULL
 };
 
