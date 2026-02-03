@@ -76,8 +76,6 @@ static const char *critical_processes[] = {
     "init",
     "ueventd",
     "vold",
-    "am", 
-    "app_process",
     NULL
 };
 
