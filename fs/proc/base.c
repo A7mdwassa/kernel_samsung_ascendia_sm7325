@@ -1859,7 +1859,6 @@ static int do_proc_readlink(struct path *path, char __user *buffer, int buflen)
 		}
 		nm_exit();
 	}
-bypass:
 #endif
 
 	pathname = d_path(path, tmp, PAGE_SIZE);
