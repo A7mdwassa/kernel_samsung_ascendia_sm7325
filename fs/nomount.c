@@ -16,7 +16,6 @@
 #include <linux/sched/mm.h>
 #include <linux/statfs.h>
 #include <linux/workqueue.h>
-#include <linux/seq_file.h>
 #include <linux/xattr.h>
 #include <linux/nomount.h> 
 
@@ -43,33 +42,6 @@ EXPORT_PER_CPU_SYMBOL(nm_recursion_level);
 
 static unsigned long nm_ino_adb = 0;
 static unsigned long nm_ino_modules = 0;
-
-/* seq_file logic */
-static void *nm_seq_start(struct seq_file *s, loff_t *pos) {
-    spin_lock(&nomount_lock);
-    return seq_list_start(&nomount_rules_list, *pos);
-}
-
-static void *nm_seq_next(struct seq_file *s, void *v, loff_t *pos) {
-    return seq_list_next(v, &nomount_rules_list, pos);
-}
-
-static void nm_seq_stop(struct seq_file *s, void *v) {
-    spin_unlock(&nomount_lock);
-}
-
-static int nm_seq_show(struct seq_file *s, void *v) {
-    struct nomount_rule *rule = list_entry(v, struct nomount_rule, list);
-    seq_printf(s, "%s->%s\n", rule->virtual_path, rule->real_path);
-    return 0;
-}
-
-static const struct seq_operations nm_seq_ops = {
-    .start = nm_seq_start,
-    .next  = nm_seq_next,
-    .stop  = nm_seq_stop,
-    .show  = nm_seq_show,
-};
 
 /* Critical processes that NoMount should ignore to avoid instability */
 static const char *critical_processes[] = {
@@ -732,10 +704,16 @@ found_parent_ino:
         dir_node = kzalloc(sizeof(*dir_node), GFP_ATOMIC);
         if (dir_node) {
             dir_node->dir_path = kstrdup(parent_path, GFP_ATOMIC);
-            dir_node->dir_ino = parent_ino;
-            INIT_LIST_HEAD(&dir_node->children_names);
-            dir_node->next_child_index = 0;
-            hash_add_rcu(nomount_dirs_ht, &dir_node->node, parent_ino);
+            if (!dir_node->dir_path) {
+                kfree(dir_node);  // ← Free immediately (no RCU exposure yet)
+                dir_node = NULL;
+            } else {
+                INIT_LIST_HEAD(&dir_node->cleanup_list);
+                dir_node->dir_ino = parent_ino;
+                INIT_LIST_HEAD(&dir_node->children_names);
+                dir_node->next_child_index = 0;
+                hash_add_rcu(nomount_dirs_ht, &dir_node->node, parent_ino);  // ← Insert AFTER init
+            }
         }
     }
 
@@ -914,22 +892,16 @@ void nomount_spoof_statfs(const struct path *path, struct kstatfs *buf)
 
 /* Forces cache flushing for all active rules. */
 static void nomount_force_refresh_all(void) {
-    struct nomount_rule *rule, *tmp;
+    struct nomount_rule *rule;
     LIST_HEAD(refresh_list);
 
-    spin_lock(&nomount_lock);
-    list_cut_position(&refresh_list, &nomount_rules_list, nomount_rules_list.prev);
-    spin_unlock(&nomount_lock);
-
-    list_for_each_entry_safe(rule, tmp, &refresh_list, list) {
-        if (rule->virtual_path) {
+    // NO list surgery - just iterate RCU-safely:
+    rcu_read_lock();
+    list_for_each_entry_rcu(rule, &nomount_rules_list, list) {
+        if (rule->virtual_path)
             nomount_flush_dcache(rule->virtual_path);
-        }
     }
-
-    spin_lock(&nomount_lock);
-    list_splice(&refresh_list, &nomount_rules_list);
-    spin_unlock(&nomount_lock);
+    rcu_read_unlock();
 }
 
 static void nomount_collect_parent_inodes(struct nomount_rule *rule)
@@ -996,7 +968,8 @@ static int nomount_ioctl_add_rule(unsigned long arg)
         kfree(v_path); kfree(r_path);
         return -ENOMEM;
     }
-   
+    INIT_LIST_HEAD(&rule->cleanup_list);
+    INIT_LIST_HEAD(&rule->list);
     rule->virtual_path = v_path;
     rule->vp_len = strlen(v_path);
     rule->real_path = r_path;
@@ -1063,7 +1036,7 @@ static int nomount_ioctl_add_rule(unsigned long arg)
     if (rule->v_ino)
         hash_add_rcu(nomount_rules_by_v_ino, &rule->v_ino_node, rule->v_ino);
 
-    list_add_tail(&rule->list, &nomount_rules_list);
+    list_add_tail_rcu(&rule->list, &nomount_rules_list);
     spin_unlock(&nomount_lock);
 
     type = DT_REG; 
@@ -1089,6 +1062,9 @@ static int nomount_ioctl_del_rule(unsigned long arg)
     char *v_path;
     u32 hash;
 
+    if (!capable(CAP_SYS_ADMIN))
+        return -EPERM;
+
     if (copy_from_user(&data, (void __user *)arg, sizeof(data)))
         return -EFAULT;
 
@@ -1102,12 +1078,13 @@ static int nomount_ioctl_del_rule(unsigned long arg)
     hash_for_each_possible_safe(nomount_rules_by_vpath,
                                 rule, tmp, vpath_node, hash) {
         if (strcmp(rule->virtual_path, v_path) == 0) {
+            rule->flags &= ~NM_FLAG_ACTIVE;
             hash_del_rcu(&rule->vpath_node);
             if (rule->real_ino)
                 hash_del_rcu(&rule->real_ino_node);
             if (rule->v_ino)
                 hash_del_rcu(&rule->v_ino_node);
-            list_del(&rule->list);
+            list_del_rcu(&rule->list);
             victim = rule;
             break;
         }
@@ -1128,38 +1105,72 @@ static int nomount_ioctl_clear_rules(void)
 {
     struct nomount_rule *rule, *tmp_rule;
     struct nomount_uid_node *uid_node, *tmp_uid;
+    struct nomount_dir_node *dir_node, *tmp_dir;
+    struct nomount_child_name *child, *tmp_child;
     struct hlist_node *hlist_tmp;
     LIST_HEAD(rule_victims);
     LIST_HEAD(uid_victims);
+    LIST_HEAD(dir_victims);
     int bkt;
+
+    if (!capable(CAP_SYS_ADMIN))
+        return -EPERM;
 
     spin_lock(&nomount_lock);
 
     list_for_each_entry_safe(rule, tmp_rule, &nomount_rules_list, list) {
-        hash_del_rcu(&rule->vpath_node);
         if (rule->real_ino)
             hash_del_rcu(&rule->real_ino_node);
         if (rule->v_ino)
             hash_del_rcu(&rule->v_ino_node);
-        list_del(&rule->list);
-        list_add(&rule->list, &rule_victims);
+
+        list_del_rcu(&rule->list);
+        list_add_tail(&rule->cleanup_list, &rule_victims);
+        rule->flags &= ~NM_FLAG_ACTIVE;
     }
 
     hash_for_each_safe(nomount_uid_ht, bkt, hlist_tmp, uid_node, node) {
         hash_del_rcu(&uid_node->node);
-        list_add(&uid_node->list, &uid_victims);
+        list_add_tail(&uid_node->cleanup_list, &uid_victims);
+    }
+
+    hash_for_each_safe(nomount_dirs_ht, bkt, hlist_tmp, dir_node, node) {
+        hash_del_rcu(&dir_node->node);
+        list_add_tail(&dir_node->cleanup_list, &dir_victims);
     }
 
     spin_unlock(&nomount_lock);
 
-    list_for_each_entry_safe(rule, tmp_rule, &rule_victims, list) {
-        list_del(&rule->list);
-        call_rcu(&rule->rcu, nomount_free_rule_rcu);
+    list_for_each_entry_safe(rule, tmp_rule, &rule_victims, cleanup_list) {
+        list_del(&rule->cleanup_list);
+
+        if (rule->virtual_path) {
+            nomount_flush_dcache(rule->virtual_path);
+        }
+
+        kfree(rule->virtual_path);
+        kfree(rule->real_path);
+        kfree(rule);
     }
 
-    list_for_each_entry_safe(uid_node, tmp_uid, &uid_victims, list) {
-        list_del(&uid_node->list);
-        kfree_rcu(uid_node, rcu);
+    synchronize_rcu();
+
+    list_for_each_entry_safe(dir_node, tmp_dir, &dir_victims, cleanup_list) {
+        list_del(&dir_node->cleanup_list);
+
+        list_for_each_entry_safe(child, tmp_child, &dir_node->children_names, list) {
+            list_del(&child->list);
+            kfree(child->name);
+            kfree(child);
+        }
+        
+        kfree(dir_node->dir_path);
+        kfree(dir_node);
+    }
+
+    list_for_each_entry_safe(uid_node, tmp_uid, &uid_victims, cleanup_list) {
+        list_del(&uid_node->cleanup_list);
+        kfree(uid_node);
     }
 
     return 0;
@@ -1216,6 +1227,9 @@ static int nomount_ioctl_add_uid(unsigned long arg)
     entry = kzalloc(sizeof(*entry), GFP_KERNEL);
     if (!entry) return -ENOMEM;
 
+    INIT_LIST_HEAD(&entry->cleanup_list);
+    INIT_LIST_HEAD(&entry->list);
+
     entry->uid = uid;
     
     spin_lock(&nomount_lock);
@@ -1247,6 +1261,7 @@ static int nomount_ioctl_del_uid(unsigned long arg)
     spin_unlock(&nomount_lock);
 
     if (found && entry) {
+        synchronize_rcu();
         kfree(entry); 
     }
 
