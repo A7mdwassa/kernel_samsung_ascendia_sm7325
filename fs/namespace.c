@@ -43,8 +43,7 @@
 
 #ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
 extern bool susfs_is_current_ksu_domain(void);
-extern bool susfs_is_boot_completed_triggered;
-
+extern bool susfs_is_sdcard_android_data_decrypted;
 static atomic64_t susfs_ksu_mounts = ATOMIC64_INIT(0);
 
 #define CL_COPY_MNT_NS BIT(25) /* used by copy_mnt_ns() */
@@ -1226,11 +1225,11 @@ struct vfsmount *vfs_create_mount(struct fs_context *fc)
 
 #ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
 	// We won't check it anymore if boot-completed stage is triggered.
-	if (susfs_is_boot_completed_triggered) {
+	if (susfs_is_sdcard_android_data_decrypted) {
 		goto orig_flow;
 	}
 	// We keep checking for ksu process only until boot-completed stage is triggered
-	if (!susfs_is_boot_completed_triggered && susfs_is_current_ksu_domain()) {
+	if (!susfs_is_sdcard_android_data_decrypted && susfs_is_current_ksu_domain()) {
 		mnt = susfs_alloc_sus_vfsmnt(fc->source ?: "none");
 		atomic64_add(1, &susfs_ksu_mounts);
 		goto bypass_orig_flow;
@@ -1366,7 +1365,7 @@ static struct mount *clone_mnt(struct mount *old, struct dentry *root,
 
 #ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
 	// We won't check it anymore if boot-completed stage is triggered.
-	if (susfs_is_boot_completed_triggered) {
+	if (susfs_is_sdcard_android_data_decrypted) {
 		goto skip_checking_for_ksu_proc;
 	}
 	// First we must check for ksu process because of magic mount
