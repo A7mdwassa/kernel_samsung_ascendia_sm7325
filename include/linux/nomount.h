@@ -11,10 +11,11 @@
 #include <linux/stat.h>
 #include <linux/ioctl.h>
 #include <linux/rcupdate.h>
-#include <linux/percpu.h>
+
+#include <asm/local.h>
 
 #define NOMOUNT_MAGIC_CODE 0x4E /* 'N' */
-#define NOMOUNT_VERSION    1
+#define NOMOUNT_VERSION    10
 #define NOMOUNT_HASH_BITS  12
 #define NM_FLAG_ACTIVE        (1 << 0)
 #define NM_FLAG_IS_DIR        (1 << 7)
@@ -30,42 +31,35 @@
 #define NOMOUNT_IOC_REFRESH _IO(NOMOUNT_MAGIC_CODE, 8)
 #define MAX_LIST_BUFFER_SIZE (1024 * 1024)
 #define NM_MAX_PARENTS 16
+#define NM_RECURSION_SHIFT 29
+#define NM_RECURSION_MASK  (0x7UL << NM_RECURSION_SHIFT)
 
 struct nomount_ioctl_data {
     char __user *virtual_path;
     char __user *real_path;
     unsigned int flags;
+    unsigned long real_ino;
+    dev_t real_dev;
 };
 
 struct nomount_rule {
-    /* hash by virtual path */
-    struct hlist_node vpath_node;
-
-    /* hash by real inode */
-    struct hlist_node real_ino_node;
-
-    /* hash by virtual inode */
-    struct hlist_node v_ino_node;
-
-    struct list_head list;
-    struct list_head cleanup_list;
-    size_t vp_len;
+    unsigned long v_ino;
+    unsigned long real_ino;
+    dev_t v_dev;
+    dev_t real_dev;
     char *virtual_path;
     char *real_path;
-    unsigned long real_ino;
-    unsigned long parent_ino;
-    unsigned long v_ino;
-    dev_t real_dev;
-    dev_t v_dev;
+    size_t vp_len;
     long v_fs_type;
+    u32 v_hash;
+    u32 flags;
     kuid_t v_uid;
     kgid_t v_gid;
-
-    unsigned int parent_count;
-    unsigned long parent_inos[NM_MAX_PARENTS];
-
-    bool is_new;
-    u32 flags;
+    struct hlist_node v_ino_node;
+    struct hlist_node real_ino_node;
+    struct hlist_node vpath_node;
+    struct list_head list;
+    struct list_head cleanup_list;
     struct rcu_head rcu; 
 };
 
@@ -99,22 +93,29 @@ struct nomount_uid_node {
 #ifdef CONFIG_NOMOUNT
 extern atomic_t nomount_enabled;
 
-DECLARE_PER_CPU(int, nm_recursion_level);
-
 static inline void nm_enter(void) {
-    preempt_disable();
-    __this_cpu_inc(nm_recursion_level);
-    preempt_enable();
+    unsigned long flags = current->flags;
+    unsigned long level = (flags & NM_RECURSION_MASK) >> NM_RECURSION_SHIFT;
+
+    if (level < 7) {
+        level++;
+        current->flags = (flags & ~NM_RECURSION_MASK) | (level << NM_RECURSION_SHIFT);
+    }
 }
 
 static inline void nm_exit(void) {
-    preempt_disable();
-    __this_cpu_dec(nm_recursion_level);
-    preempt_enable();
+    unsigned long flags = current->flags;
+    unsigned long level = (flags & NM_RECURSION_MASK) >> NM_RECURSION_SHIFT;
+
+    if (level > 0) {
+        level--;
+        current->flags = (flags & ~NM_RECURSION_MASK) | (level << NM_RECURSION_SHIFT);
+    }
 }
 
 static inline bool nm_is_recursive(void) {
-    return __this_cpu_read(nm_recursion_level) > 0;
+    unsigned long level = (current->flags & NM_RECURSION_MASK) >> NM_RECURSION_SHIFT;
+    return (level > 5);
 }
 
 bool nomount_should_skip(void);
@@ -122,10 +123,8 @@ bool nomount_should_skip_readlink(void);
 bool nomount_spoof_mmap_metadata(struct inode *inode, dev_t *dev, unsigned long *ino);
 char *nomount_resolve_path(const char *pathname);
 struct filename *nomount_getname_hook(struct filename *name);
-void nomount_inject_dents64(struct file *file, void __user **dirent, int *count, loff_t *pos);
-void nomount_inject_dents(struct file *file, void __user **dirent, int *count, loff_t *pos);
+void nomount_inject_dents(struct file *file, void __user **dirent, int *count, loff_t *pos, int compat);
 const char *nomount_get_static_vpath(struct inode *inode);
-const char *nomount_get_static_vpath_readlink(struct inode *inode);
 bool nomount_is_traversal_allowed(struct inode *inode, int mask);
 bool nomount_is_injected_file(struct inode *inode);
 ssize_t nomount_getxattr_hook(struct dentry *dentry, const char *name, void *value, size_t size);
@@ -137,8 +136,7 @@ void nomount_spoof_statfs(const struct path *path, struct kstatfs *buf);
 static inline bool nomount_should_skip(void) { return true; }
 static inline char *nomount_resolve_path(const char *p) { return NULL; }
 static inline struct filename *nomount_getname_hook(struct filename *name) { return name; }
-static inline void nomount_inject_dents64(struct file *f, void __user **d, int *c, loff_t *p) {}
-static inline void nomount_inject_dents(struct file *f, void __user **d, int *c, loff_t *p) {}
+static inline void nomount_inject_dents(struct file *f, void __user **d, int *c, loff_t *p, int compat) {}
 static inline const char *nomount_get_static_vpath(struct inode *inode) { return NULL; }
 static inline bool nomount_is_traversal_allowed(struct inode *inode, int mask) { return false; }
 static inline bool nomount_is_injected_file(struct inode *inode) { return false; }
