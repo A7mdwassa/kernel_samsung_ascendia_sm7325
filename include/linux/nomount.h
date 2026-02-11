@@ -38,8 +38,14 @@ struct nomount_ioctl_data {
     char __user *virtual_path;
     char __user *real_path;
     unsigned int flags;
+    unsigned int name_offset;
     unsigned long real_ino;
     dev_t real_dev;
+    unsigned long v_ino;
+    dev_t v_dev;
+    unsigned int v_fs_type;
+    unsigned int _pad;
+    unsigned long p_ino;
 };
 
 struct nomount_rule {
@@ -119,7 +125,7 @@ static inline bool nm_is_recursive(void) {
 }
 
 bool nomount_should_skip(void);
-bool nomount_should_skip_readlink(void);
+ssize_t nomount_readlink_hook(struct inode *inode, char __user *buffer, int buflen);
 bool nomount_spoof_mmap_metadata(struct inode *inode, dev_t *dev, unsigned long *ino);
 char *nomount_resolve_path(const char *pathname);
 struct filename *nomount_getname_hook(struct filename *name);
