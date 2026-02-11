@@ -17,6 +17,7 @@
 #include <linux/statfs.h>
 #include <linux/workqueue.h>
 #include <linux/xattr.h>
+#include <linux/fs_struct.h>
 #include <linux/nomount.h> 
 
 atomic_t nomount_enabled = ATOMIC_INIT(0);
@@ -251,23 +252,91 @@ EXPORT_SYMBOL(nomount_resolve_path);
 
 struct filename *nomount_getname_hook(struct filename *name)
 {
-    char *target;
+    char *target = NULL;
     struct filename *new_name;
 
-    if (nomount_should_skip() || !name || !name->name) 
+    if (nomount_should_skip() || !name || !name->name)
         return name;
 
-    rcu_read_lock();
-    target = nomount_resolve_path(name->name);
-    
-    if (!target) {
-        rcu_read_unlock();
-        return name;
+    char path_buf[PATH_MAX];
+    strlcpy(path_buf, name->name, PATH_MAX);
+
+    /* If relative path or contains "." / "..", normalize it */
+    if (path_buf[0] != '/' || strchr(path_buf, '.')) {
+        struct path pwd;
+        char *pwd_str;
+
+        if (path_buf[0] != '/') {
+            /* Relative path: resolve against cwd */
+            get_fs_pwd(current->fs, &pwd);
+            pwd_str = d_path(&pwd, path_buf, PATH_MAX);
+            if (IS_ERR(pwd_str)) {
+                path_put(&pwd);
+                /* fallback: leave path_buf as-is */
+            } else {
+                size_t pwd_len = strlen(pwd_str);
+                if (pwd_len + 1 + strlen(name->name) < PATH_MAX) {
+                    memmove(path_buf + pwd_len + 1, name->name, strlen(name->name) + 1);
+                    if (pwd_str[pwd_len - 1] == '/')
+                        pwd_str[pwd_len - 1] = '\0';
+                    memmove(path_buf, pwd_str, pwd_len);
+                    path_buf[pwd_len] = '/';
+                }
+            }
+            path_put(&pwd);
+        }
+
+        /* Normalize "." and ".." in-place */
+        {
+            char *src = path_buf;
+            char *dst = path_buf;
+            int depth = 0;
+
+            /* Skip leading slashes */
+            while (*src == '/') src++;
+            dst = path_buf;
+
+            while (*src) {
+                while (*src == '/') src++;
+                if (!*src) break;
+
+                char *start = src;
+                while (*src && *src != '/') src++;
+                int len = src - start;
+
+                if (len == 1 && start[0] == '.') {
+                    /* skip "." */
+                    continue;
+                } else if (len == 2 && start[0] == '.' && start[1] == '.') {
+                    if (depth > 0) {
+                        /* Backtrack to previous component */
+                        while (dst > path_buf && *dst != '/') dst--;
+                        if (dst > path_buf) dst--;  /* move before slash */
+                        depth--;
+                    }
+                    /* else at root, ".." does nothing */
+                } else {
+                    if (dst != path_buf && *dst != '/') *++dst = '/';
+                    memmove(++dst, start, len);
+                    dst += len - 1;
+                    depth++;
+                }
+            }
+
+            if (dst == path_buf) *++dst = '/';  /* root */
+            *++dst = '\0';
+        }
     }
 
-    new_name = getname_kernel(target); 
+    /* RCU lookup */
+    rcu_read_lock();
+    target = nomount_resolve_path(path_buf);
     rcu_read_unlock();
 
+    if (!target)
+        return name;
+
+    new_name = getname_kernel(target);
     if (!IS_ERR(new_name)) {
         new_name->uptr = name->uptr;
         new_name->aname = name->aname;
