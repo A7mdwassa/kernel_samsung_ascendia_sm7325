@@ -40,17 +40,6 @@ static LIST_HEAD(nomount_rules_list);
 static DEFINE_SPINLOCK(nomount_lock);
 static DEFINE_MUTEX(nm_refresh_lock);
 
-static unsigned long nm_ino_adb = 0;
-static unsigned long nm_ino_modules = 0;
-
-/* Critical processes that NoMount should ignore to avoid instability */
-static const char *critical_processes[] = {
-    "init",
-    "ueventd",
-    "vold", 
-    NULL
-};
-
 /* Returns true if the current process should be ignored */
 static bool nomount_is_critical_process(void) {
     const char *comm = current->comm;
@@ -254,11 +243,11 @@ struct filename *nomount_getname_hook(struct filename *name)
 {
     char *target = NULL;
     struct filename *new_name;
+    char path_buf[PATH_MAX];
 
     if (nomount_should_skip() || !name || !name->name)
         return name;
 
-    char path_buf[PATH_MAX];
     strlcpy(path_buf, name->name, PATH_MAX);
 
     /* If relative path or contains "." / "..", normalize it */
@@ -297,12 +286,15 @@ struct filename *nomount_getname_hook(struct filename *name)
             dst = path_buf;
 
             while (*src) {
+                char *start;
+                int len;
+
                 while (*src == '/') src++;
                 if (!*src) break;
 
-                char *start = src;
+                start = src;
                 while (*src && *src != '/') src++;
-                int len = src - start;
+                len = src - start;
 
                 if (len == 1 && start[0] == '.') {
                     /* skip "." */
@@ -351,10 +343,9 @@ void nomount_inject_dents(struct file *file, void __user **dirent, int *count, l
 {
     struct nomount_dir_node *curr_dir;
     struct nomount_child_name *child;
-    struct inode *dir_inode = d_backing_inode(file->f_path.dentry);
-    struct linux_dirent64 __user *curr_dirent;
     unsigned long v_index;
     int name_len, reclen;
+    struct inode *dir_inode = d_backing_inode(file->f_path.dentry);
 
     if (!dir_inode || nomount_should_skip()) return;
 
@@ -633,13 +624,15 @@ static void nomount_collect_parents(const char *real_path)
 
         nm_enter();
         if (kern_path(p, LOOKUP_FOLLOW, &kp) == 0) {
+            struct nomount_dir_node *curr;
+            bool exists;
+
             unsigned long p_ino = d_backing_inode(kp.dentry)->i_ino;
             path_put(&kp);
             nm_exit();
 
             spin_lock(&nomount_lock);
-            struct nomount_dir_node *curr;
-            bool exists = false;
+            exists = false;
             hash_for_each_possible(nomount_dirs_ht, curr, node, p_ino) {
                 if (curr->dir_ino == p_ino) {
                     exists = true;
@@ -668,8 +661,6 @@ static int nomount_ioctl_add_rule(unsigned long arg)
     struct nomount_ioctl_data data;
     struct nomount_rule *rule;
     char *v_path, *r_path;
-    struct kstatfs tmp_stfs;
-    struct path path, p_path;
     u32 hash;
 
     if (copy_from_user(&data, (void __user *)arg, sizeof(data)))
