@@ -11,6 +11,7 @@
 #include <linux/stat.h>
 #include <linux/ioctl.h>
 #include <linux/rcupdate.h>
+#include <linux/bitmap.h>
 
 #include <asm/local.h>
 
@@ -33,19 +34,16 @@
 #define NM_MAX_PARENTS 16
 #define NM_RECURSION_SHIFT 29
 #define NM_RECURSION_MASK  (0x7UL << NM_RECURSION_SHIFT)
+#define NOMOUNT_BLOOM_BITS 20
+#define NOMOUNT_BLOOM_SIZE (1 << NOMOUNT_BLOOM_BITS)
+extern unsigned long nomount_bloom[];
 
 struct nomount_ioctl_data {
     char __user *virtual_path;
     char __user *real_path;
     unsigned int flags;
-    unsigned int name_offset;
     unsigned long real_ino;
     dev_t real_dev;
-    unsigned long v_ino;
-    dev_t v_dev;
-    unsigned int v_fs_type;
-    unsigned int _pad;
-    unsigned long p_ino;
 };
 
 struct nomount_rule {
