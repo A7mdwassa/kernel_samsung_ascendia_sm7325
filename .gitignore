@@ -155,3 +155,6 @@ arch/arm/boot/dts/vendor
 qGKI.sh
 opener.sh
 out/
+*.rej
+*.orig
+*.patch
