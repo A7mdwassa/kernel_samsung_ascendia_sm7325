@@ -59,12 +59,12 @@ build_kernel(){
     # Replace 'vendor/a52sxq_eur_open_defconfig' with the name of your kernel's defconfig
 #    make ${BUILD_OPTIONS} clean
 #    make ${BUILD_OPTIONS} mrproper
-#    make ${BUILD_OPTIONS} vendor/a52sxq_eur_open_defconfig
+    make ${BUILD_OPTIONS} vendor/a52sxq_eur_open_defconfig
 
 #    ./scripts/kconfig/merge_config.sh -O ${KERNEL_ROOT}/out arch/arm64/configs/vendor/a52sxq_eur_open_defconfig arch/arm64/configs/ksu.config arch/arm64/configs/bbg.config arch/arm64/configs/nomount.config
 
     # Configure the kernel
-#    nano out/.config
+    nano out/.config
 
     # Build the kernel
     make ${BUILD_OPTIONS} Image || exit 1
