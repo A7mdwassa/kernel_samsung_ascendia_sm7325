@@ -1,7 +1,3 @@
-[submodule "Baseband-guard"]
-	path = Baseband-guard
-	url = https://github.com/vc-teahouse/Baseband-guard
 [submodule "KernelSU"]
 	path = KernelSU
-	url = https://github.com/sidex15/KernelSU-Next
-	branch = legacy
+	url = https://github.com/ananjaser1211/KernelSU
