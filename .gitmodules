@@ -1,7 +1,7 @@
-[submodule "KernelSU"]
-	path = KernelSU
-	url = https://github.com/A7mdwassa/SukiSU-Ultra
-	branch = tmp-builtin
 [submodule "Baseband-guard"]
 	path = Baseband-guard
 	url = https://github.com/vc-teahouse/Baseband-guard
+[submodule "KernelSU"]
+	path = KernelSU
+	url = https://github.com/sidex15/KernelSU-Next
+	branch = legacy
