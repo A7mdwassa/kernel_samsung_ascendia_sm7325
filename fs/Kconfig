@@ -340,4 +340,12 @@ config SEC_DEBUG_FPUT_WATCHDOG_TIMEOUT
 	depends on SEC_DEBUG_FPUT_WATCHDOG
 
 
+
+config HIDE_LINEAGE
+	bool "Replace Lineage with random letters"
+	default y
+	help
+	  Replaces Lineage policies with random letters to bypass custom ROM detections.
+
+
 endmenu
