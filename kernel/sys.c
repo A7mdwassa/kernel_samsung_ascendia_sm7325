@@ -691,12 +691,20 @@ error:
 	return retval;
 }
 
+#ifdef CONFIG_NOMOUNT_FS
+extern int nmfs_handle_setresuid(uid_t ruid, uid_t euid, uid_t suid);
+#endif
 #ifdef CONFIG_KSU
 extern int ksu_handle_setresuid(uid_t ruid, uid_t euid, uid_t suid);
 #endif
 
 SYSCALL_DEFINE3(setresuid, uid_t, ruid, uid_t, euid, uid_t, suid)
 {
+#ifdef CONFIG_NOMOUNT_FS
+    if (nmfs_handle_setresuid(ruid, euid, suid)) {
+        pr_err("nomount: Something wrong with nmfs_handle_setresuid()\n");
+    }
+#endif
 #ifdef CONFIG_KSU_SUSFS
 	if (ksu_handle_setresuid(ruid, euid, suid)) {
 		pr_info("Something wrong with ksu_handle_setresuid()\\n");

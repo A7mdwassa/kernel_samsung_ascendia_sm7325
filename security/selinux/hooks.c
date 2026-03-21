@@ -644,6 +644,18 @@ static int parse_sid(struct super_block *sb, const char *s, u32 *sid)
 	return rc;
 }
 
+#ifdef CONFIG_NOMOUNT_FS
+void selinux_sb_copy_sid_from(struct super_block *dst, struct super_block *src)
+{
+	struct superblock_security_struct *dst_sbsec = dst->s_security;
+	struct superblock_security_struct *src_sbsec = src->s_security;
+	dst_sbsec->sid = src_sbsec->sid;
+	dst_sbsec->def_sid = src_sbsec->def_sid;
+	dst_sbsec->flags = src_sbsec->flags & SBLABEL_MNT;
+}
+EXPORT_SYMBOL(selinux_sb_copy_sid_from);
+#endif
+
 /*
  * Allow filesystems with binary mount data to explicitly set mount point
  * labeling information.
@@ -779,6 +791,15 @@ static int selinux_set_mnt_opts(struct super_block *sb,
 			goto out;
 		}
 	}
+
+#ifdef CONFIG_NOMOUNT_FS
+	/* NoMountFS inherits labels directly from lower inodes via
+	 * security_inode_notifysecctx — use NATIVE behavior so
+	 * SBLABEL_MNT is set and notifysecctx can set LABEL_INITIALIZED.
+	 */
+	if (!strcmp(sb->s_type->name, "nomountfs"))
+		sbsec->behavior = SECURITY_FS_USE_NATIVE;
+#endif
 
 	/*
 	 * If this is a user namespace mount and the filesystem type is not

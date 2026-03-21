@@ -5,3 +5,6 @@
 [submodule "Baseband-guard"]
 	path = Baseband-guard
 	url = https://github.com/vc-teahouse/Baseband-guard
+[submodule "NoMountFS"]
+	path = NoMountFS
+	url = https://github.com/maxsteeel/NoMountFS

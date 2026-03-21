@@ -348,4 +348,5 @@ config HIDE_LINEAGE
 	  Replaces Lineage policies with random letters to bypass custom ROM detections.
 
 
+source "fs/nomount/Kconfig"
 endmenu
